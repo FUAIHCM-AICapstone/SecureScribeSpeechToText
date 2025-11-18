@@ -4,11 +4,14 @@ FROM ${RUNTIME_IMAGE}
 # Set environment variables
 ENV ENV=production
 
+# Ensure we're running as root for setup
+USER root
+
 # Copy application code
 COPY app/ ./app/
 COPY start.sh ./start.sh
 
-# Download model files
+# Create data directory and download model files
 RUN mkdir -p ./data && \
     apt-get update && apt-get install -y --no-install-recommends curl && \
     curl -L "https://huggingface.co/hynt/EfficientConformerVietnamese/resolve/main/6gram_lm_corpus.binary?download=true" -o ./data/6gram_lm_corpus.binary && \
@@ -16,7 +19,8 @@ RUN mkdir -p ./data && \
     apt-get remove -y curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN chmod +x start.sh && sed -i 's/\r$//' start.sh && chown appuser:appuser start.sh
+# Fix permissions and make start.sh executable
+RUN chmod +x start.sh && sed -i 's/\r$//' start.sh && chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
