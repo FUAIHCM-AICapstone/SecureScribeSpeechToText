@@ -33,7 +33,8 @@ class Model(nn.Module):
         # Tokenizer
         try:
             self.tokenizer = spm.SentencePieceProcessor(tokenizer_params["tokenizer_path"])
-        except:
+        except Exception as e:
+            print(e)
             self.tokenizer = None
             print("Tokenizer not found...")
 

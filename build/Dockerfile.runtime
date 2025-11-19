@@ -17,7 +17,7 @@ RUN addgroup --system appuser && \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc g++ make cmake git \
     libboost-program-options-dev libboost-system-dev libboost-thread-dev libboost-test-dev \
-    libeigen3-dev zlib1g-dev libbz2-dev liblzma-dev \
+    libeigen3-dev zlib1g-dev libbz2-dev liblzma-dev ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install KenLM from source

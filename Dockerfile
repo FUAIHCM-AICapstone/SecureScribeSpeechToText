@@ -13,11 +13,12 @@ WORKDIR /app
 RUN addgroup --system appuser && \
     adduser --system --ingroup appuser appuser
 
-# Install build deps including cmake for KenLM
+# Install build deps including cmake for KenLM and FFmpeg
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc g++ make cmake git \
     libboost-program-options-dev libboost-system-dev libboost-thread-dev libboost-test-dev \
     libeigen3-dev zlib1g-dev libbz2-dev liblzma-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install KenLM from source
@@ -39,6 +40,7 @@ RUN pip install --no-cache-dir uv \
 # Copy application code
 COPY app/ ./app/
 COPY start.sh ./start.sh
+COPY ./datasets ./datasets
 COPY 6gram_lm_corpus.binary ./data/6gram_lm_corpus.binary
 COPY ./checkpoints_56_90h.ckpt ./checkpoints_56_90h.ckpt
 

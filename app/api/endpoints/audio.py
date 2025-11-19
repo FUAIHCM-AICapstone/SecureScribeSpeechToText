@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.jobs.tasks import transcribe_audio_task
 from app.utils.redis import create_task, get_task_status
+from app.utils.audio_converter import convert_webm_to_wav
 
 # Suppress specific deprecation warnings from pyannote.audio/torchaudio
 warnings.filterwarnings("ignore", message="torchaudio._backend.list_audio_backends has been deprecated", category=UserWarning)
@@ -47,7 +48,7 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
     print(f"\033[94m[API] Starting background transcription for file: {file.filename}\033[0m")
 
     # Validate file type
-    allowed_extensions: Set[str] = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac"}
+    allowed_extensions: Set[str] = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"}
     file_extension = os.path.splitext(file.filename or "")[1].lower()
 
     if file_extension not in allowed_extensions:
@@ -74,6 +75,46 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
             shutil.copyfileobj(file.file, buffer)
 
         print("\033[92m[API] File saved successfully\033[0m")
+
+        # Handle WebM conversion
+        if file_extension == ".webm":
+            print(f"\033[94m[API] WebM file detected, validating audio stream\033[0m")
+            
+            try:
+                # Convert WebM to WAV
+                print(f"\033[94m[API] Converting WebM to WAV format\033[0m")
+                wav_path = f"/tmp/transcribe_{task_id}.wav"
+                
+                if not convert_webm_to_wav(temp_audio_path, wav_path):
+                    print(f"\033[91m[API] ERROR: Failed to convert WebM to WAV\033[0m")
+                    # Clean up both WebM and any partial WAV files
+                    if os.path.exists(temp_audio_path):
+                        os.unlink(temp_audio_path)
+                    if os.path.exists(wav_path):
+                        os.unlink(wav_path)
+                    raise HTTPException(status_code=500, detail="Failed to convert WebM to WAV")
+                
+                # Clean up original WebM file
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
+                    print(f"\033[94m[API] Cleaned up original WebM file\033[0m")
+                
+                # Update temp_audio_path to point to converted WAV file
+                temp_audio_path = wav_path
+                print(f"\033[92m[API] WebM conversion completed successfully\033[0m")
+                
+            except HTTPException:
+                # Re-raise HTTP exceptions
+                raise
+            except Exception as e:
+                print(f"\033[91m[API] ERROR: WebM processing failed: {str(e)}\033[0m")
+                # Clean up files on error
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
+                wav_path = f"/tmp/transcribe_{task_id}.wav"
+                if os.path.exists(wav_path):
+                    os.unlink(wav_path)
+                raise HTTPException(status_code=500, detail=f"Failed to process WebM file: {str(e)}")
 
         # Create task metadata in Redis
         print(f"\033[94m[API] Creating task metadata for task_id={task_id}\033[0m")
@@ -138,4 +179,4 @@ async def get_transcription_status():
     Returns:
         JSON response with service status and configuration
     """
-    return {"success": True, "message": "Transcription service is available", "data": {"supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac"], "model_config": CONFIG_PATH, "checkpoint": CHECKPOINT_PATH, "device": "cpu", "diarization_model": "pyannote/speaker-diarization-3.1"}}
+    return {"success": True, "message": "Transcription service is available", "data": {"supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"], "model_config": CONFIG_PATH, "checkpoint": CHECKPOINT_PATH, "device": "cpu", "diarization_model": "pyannote/speaker-diarization-3.1"}}

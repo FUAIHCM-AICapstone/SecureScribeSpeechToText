@@ -168,7 +168,7 @@ def diarize_and_transcribe_audio(audio_path, config_path, checkpoint_path, hf_to
     print(f"\033[94m[PIPELINE] Loading model configuration from: {config_path}\033[0m")
     with open(config_path) as f:
         config = json.load(f)
-    print("\033[92m[PIPELINE] Configuration loaded: {config.get('model_name', 'Unknown Model')}\033[0m")
+    print(f"\033[92m[PIPELINE] Configuration loaded: {config.get('model_name', 'Unknown Model')}\033[0m")
 
     # Create model
     print("\033[94m[PIPELINE] Creating model...\033[0m")

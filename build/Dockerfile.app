@@ -10,6 +10,7 @@ USER root
 # Copy application code
 COPY app/ ./app/
 COPY start.sh ./start.sh
+COPY ./datasets ./datasets
 
 # Create data directory and download model files
 RUN mkdir -p ./data && \

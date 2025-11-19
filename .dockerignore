@@ -45,7 +45,6 @@ docker-compose*.yml
 .dockerignore
 
 # Datasets (large files)
-datasets/
 *.wav
 *.mp3
 *.flac

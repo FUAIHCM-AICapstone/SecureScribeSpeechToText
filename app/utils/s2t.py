@@ -10,7 +10,7 @@ def create_model(config_data):
     return model
 
 
-def transcribe_audio_segment(model, audio_tensor, device="cpu"):
+def transcribe_audio_segment(model, audio_tensor, device="cpu", sample_rate=16000):
     """
     Transcribe an audio segment using the loaded model.
 
@@ -18,6 +18,7 @@ def transcribe_audio_segment(model, audio_tensor, device="cpu"):
         model: Loaded speech-to-text model
         audio_tensor: Audio tensor (should be 1D or 2D with shape [channels, samples])
         device: Device to run inference on
+        sample_rate: Sample rate of audio (default: 16000 Hz)
 
     Returns:
         Transcribed text
@@ -33,8 +34,13 @@ def transcribe_audio_segment(model, audio_tensor, device="cpu"):
         # Convert stereo to mono
         audio_tensor = audio_tensor.mean(dim=0, keepdim=True)
 
+    # Ensure proper shape
+    audio_tensor = audio_tensor.squeeze()
+    if audio_tensor.dim() == 1:
+        audio_tensor = audio_tensor.unsqueeze(0)
+
     # Check if audio is too long and split into chunks
-    max_samples = 256000  # Based on train_audio_max_length from config
+    max_samples = 956000  # Based on train_audio_max_length from config
     audio_length = audio_tensor.shape[1]
 
     if audio_length > max_samples:
@@ -80,65 +86,65 @@ def _transcribe_single_chunk(model, audio_tensor, device="cpu"):
         # Start timer
         start_time = time.time()
 
-        try:
-            # Check if beam_search_decoding method is available
-            if not hasattr(model, "beam_search_decoding"):
-                raise AttributeError("Model does not have beam_search_decoding method")
+        # try:
+        #     # Check if beam_search_decoding method is available
+        #     if not hasattr(model, "beam_search_decoding"):
+        #         raise AttributeError("Model does not have beam_search_decoding method")
 
-            # Check if ngram_path file exists if configured
-            if hasattr(model, "ngram_path") and model.ngram_path is not None:
-                if not os.path.exists(model.ngram_path):
-                    raise FileNotFoundError(f"N-gram model file not found: {model.ngram_path}")
+        #     # Check if ngram_path file exists if configured
+        #     if hasattr(model, "ngram_path") and model.ngram_path is not None:
+        #         if not os.path.exists(model.ngram_path):
+        #             raise FileNotFoundError(f"N-gram model file not found: {model.ngram_path}")
 
-            # Log beam search start
-            beam_size = getattr(model, "beam_size", 1)
-            print(f"\033[94m[S2T] Using beam search decoding (beam_size={beam_size})\033[0m")
+        #     # Log beam search start
+        #     beam_size = getattr(model, "beam_size", 1)
+        #     print(f"\033[94m[S2T] Using beam search decoding (beam_size={beam_size})\033[0m")
 
-            # Call beam search decoding
-            transcription = model.beam_search_decoding(audio_tensor.to(device), x_len)
+        #     # Call beam search decoding
+        #     transcription = model.beam_search_decoding(audio_tensor.to(device), x_len)
 
-            # Calculate elapsed time
-            elapsed = time.time() - start_time
+        #     # Calculate elapsed time
+        #     elapsed = time.time() - start_time
 
-            # Handle case where transcription is a list (batch processing)
-            if isinstance(transcription, list):
-                if not transcription:
-                    # Handle empty list case
-                    print("\033[91m[S2T] ERROR: Beam search returned empty list\033[0m")
-                    return ""
-                result = transcription[0]
-            else:
-                result = transcription
+        #     # Handle case where transcription is a list (batch processing)
+        #     if isinstance(transcription, list):
+        #         if not transcription:
+        #             # Handle empty list case
+        #             print("\033[91m[S2T] ERROR: Beam search returned empty list\033[0m")
+        #             return ""
+        #         result = transcription[0]
+        #     else:
+        #         result = transcription
 
-            # Handle None result
-            if result is None:
-                print("\033[91m[S2T] ERROR: Beam search returned None\033[0m")
-                return ""
+        #     # Handle None result
+        #     if result is None:
+        #         print("\033[91m[S2T] ERROR: Beam search returned None\033[0m")
+        #         return ""
 
-            result = result.lower().strip()
-            print(f"\033[92m[S2T] Beam search completed in {elapsed:.3f}s: '{result}'\033[0m")
-            return result
+        #     result = result.lower().strip()
+        #     print(f"\033[92m[S2T] Beam search completed in {elapsed:.3f}s: '{result}'\033[0m")
+        #     return result
 
-        except ImportError as e:
-            # ctcdecode library not installed
-            elapsed = time.time() - start_time
-            print(f"\033[93m[S2T] WARNING: ctcdecode library not available ({e}), falling back to greedy decoding\033[0m")
+        # except ImportError as e:
+        #     # ctcdecode library not installed
+        #     elapsed = time.time() - start_time
+        #     print(f"\033[93m[S2T] WARNING: ctcdecode library not available ({e}), falling back to greedy decoding\033[0m")
 
-        except FileNotFoundError as e:
-            # N-gram model file missing
-            elapsed = time.time() - start_time
-            print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
+        # except FileNotFoundError as e:
+        #     # N-gram model file missing
+        #     elapsed = time.time() - start_time
+        #     print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
 
-        except AttributeError as e:
-            # beam_search_decoding method not available
-            elapsed = time.time() - start_time
-            print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
+        # except AttributeError as e:
+        #     # beam_search_decoding method not available
+        #     elapsed = time.time() - start_time
+        #     print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
 
-        except Exception as e:
-            # Any other error during beam search
-            elapsed = time.time() - start_time
-            print(f"\033[91m[S2T] ERROR during beam search: {e}\033[0m")
-            print(f"\033[93m[S2T] Falling back to greedy search decoding\033[0m")
+        # except Exception as e:
+        #     # Any other error during beam search
+        #     elapsed = time.time() - start_time
+        #     print(f"\033[91m[S2T] ERROR during beam search: {e}\033[0m")
+        #     print(f"\033[93m[S2T] Falling back to greedy search decoding\033[0m")
 
         # Fallback to greedy decoding
         try:
