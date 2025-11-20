@@ -1,11 +1,9 @@
-import os
 import warnings
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse
 from fastapi.routing import APIRoute
 
 from app.api import api_router
@@ -111,36 +109,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
-
-
-@app.get("/chat/css", response_class=FileResponse)
-def serve_chat_css():
-    """Serve chat_bubble.css file directly"""
-    file_path = os.path.join("app", "static", "chat_bubble.css")
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="text/css")
-    else:
-        raise HTTPException(status_code=404, detail="chat_bubble.css not found")
-
-
-@app.get("/chat/js", response_class=FileResponse)
-def serve_chat_js():
-    """Serve chat_bubble.js file directly"""
-    file_path = os.path.join("app", "static", "chat_bubble.js")
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="application/javascript")
-    else:
-        raise HTTPException(status_code=404, detail="chat_bubble.js not found")
-
-
-@app.get("/chat")
-def serve_chat_app():
-    """Serve the complete chat application"""
-    file_path = os.path.join("app", "static", "chat_bubble.html")
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="text/html")
-    else:
-        raise HTTPException(status_code=404, detail="chat_bubble.html not found")
 
 
 @app.get("/health/redis")

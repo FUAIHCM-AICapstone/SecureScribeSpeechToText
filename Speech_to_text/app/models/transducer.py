@@ -1,14 +1,16 @@
+# Losses
+# from app.models.losses import (
+#     LossRNNT
+# )
+# Ngram
+import kenlm
 import torch
-import torch.nn as nn
 
-# Base Model
-from app.models.model import Model, init_vn
+# Decoders
+from app.models.decoders import ConformerDecoder, RnnDecoder, TransformerDecoder
 
 # Encoders
 from app.models.encoders import ConformerEncoder
-
-# Decoders
-from app.models.decoders import RnnDecoder, TransformerDecoder, ConformerDecoder
 
 # Joint Network
 from app.models.joint_networks import JointNetwork
@@ -16,13 +18,8 @@ from app.models.joint_networks import JointNetwork
 # Language Model
 from app.models.lm import LanguageModel
 
-# Losses
-# from app.models.losses import (
-#     LossRNNT
-# )
-
-# Ngram
-import kenlm
+# Base Model
+from app.models.model import Model, init_vn
 
 
 class Transducer(Model):
@@ -107,7 +104,7 @@ class Transducer(Model):
 
         if show_dict:
             for key, value in self.state_dict().items():
-                print("{:<64} {:<16} mean {:<16.4f} std {:<16.4f}".format(key, str(tuple(value.size())), value.float().mean(), value.float().std()))
+                print(f"{key:<64} {str(tuple(value.size())):<16} mean {value.float().mean():<16.4f} std {value.float().std():<16.4f}")
 
     def gready_search_decoding(self, x, x_len):
         # Predictions String List

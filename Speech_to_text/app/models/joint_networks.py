@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-# Layers
-from app.models.layers import Linear
-
 # Activations Functions
 from app.models.activations import Swish
+
+# Layers
+from app.models.layers import Linear
 
 ###############################################################################
 # Joint Networks

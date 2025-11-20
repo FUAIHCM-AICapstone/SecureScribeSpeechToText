@@ -191,7 +191,7 @@ Câu: "{text}"
             List of score lists (one per context)
         """
         results = []
-        for context, candidates in zip(contexts, candidates_list):
+        for context, candidates in zip(contexts, candidates_list, strict=False):
             scores = self.score(context, candidates)
             results.append(scores)
         return results

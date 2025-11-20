@@ -33,19 +33,19 @@ class VietnameseDataset(torch.utils.data.Dataset):
 
         if rank == 0:
             print("LibriSpeech dataset filtering")
-            print("Audio maximum length : {} / Label sequence maximum length : {}".format(audio_max_length, label_max_length))
+            print(f"Audio maximum length : {audio_max_length} / Label sequence maximum length : {label_max_length}")
             self.names = tqdm(self.names)
 
         if self.split == "train":
-            with open("data/train_wav_names.txt", "r", encoding="utf8") as fr:
+            with open("data/train_wav_names.txt", encoding="utf8") as fr:
                 names1 = fr.readlines()
-            with open("data/train_agument_wav_names.txt", "r", encoding="utf8") as fr:
+            with open("data/train_agument_wav_names.txt", encoding="utf8") as fr:
                 names2 = fr.readlines()
             names = names1 + names2
             print("Total " + str(self.split) + " examples: " + str(len(names)))
             return [name.replace("\n", "") for name in names]
         else:
-            with open("data/val_wav_names.txt", "r", encoding="utf8") as fr:
+            with open("data/val_wav_names.txt", encoding="utf8") as fr:
                 names = fr.readlines()
             print("Total " + str(self.split) + " examples: " + str(len(names)))
             return [name.replace("\n", "") for name in names]

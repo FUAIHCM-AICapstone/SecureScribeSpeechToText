@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 
-# Base Model
-from app.models.model import Model
-
 # Decoder
 from app.models.decoders import RnnDecoder, TransformerDecoder
 
 # Losses
 from app.models.losses import LossCE
+
+# Base Model
+from app.models.model import Model
 
 
 class LanguageModel(Model):

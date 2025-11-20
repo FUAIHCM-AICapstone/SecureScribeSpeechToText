@@ -1,20 +1,18 @@
+# Ngram
 import torch
 import torch.nn as nn
-
-# Base Model
-from app.models.model import Model
-
-# Encoders
-from app.models.encoders import ConformerEncoder
 
 # Decoders
 from app.models.decoders import ConformerCrossDecoder, TransformerCrossDecoder
 
+# Encoders
+from app.models.encoders import ConformerEncoder
+
 # Losses
 from app.models.losses import LossCE
 
-# Ngram
-import kenlm
+# Base Model
+from app.models.model import Model
 
 
 class ModelS2S(Model):
@@ -92,4 +90,4 @@ class ModelS2S(Model):
 
         if show_dict:
             for key, value in self.state_dict().items():
-                print("{:<64} {:<16} mean {:<16.4f} std {:<16.4f}".format(key, str(tuple(value.size())), value.float().mean(), value.float().std()))
+                print(f"{key:<64} {str(tuple(value.size())):<16} mean {value.float().mean():<16.4f} std {value.float().std():<16.4f}")

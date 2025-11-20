@@ -1,11 +1,12 @@
+import logging
 import os
 import time
-import torch
-import logging
 
-from app.models.model_ctc import ModelCTC
-from app.models.lm_scorer import get_lm_scorer
+import torch
+
 from app.core.config import settings
+from app.models.lm_scorer import get_lm_scorer
+from app.models.model_ctc import ModelCTC
 
 logger = logging.getLogger(__name__)
 
@@ -76,20 +77,20 @@ def transcribe_audio_segment(model, audio_tensor, device="cpu"):
 def _transcribe_single_chunk(model, audio_tensor, device="cpu", use_lm=None):
     """
     Transcribe a single audio chunk using beam search decoding with optional LM rescoring.
-    
+
     Args:
         model: The loaded speech-to-text model
         audio_tensor: Audio tensor to transcribe
         device: Device to run inference on
         use_lm: Enable LM rescoring (None=auto from settings, True=force, False=disable)
-    
+
     Returns:
         Transcribed text string
     """
     # Determine if we should use LM
     if use_lm is None:
         use_lm = settings.LM_TYPE != "none"
-    
+
     # Create LM scorer if enabled
     lm_scorer = None
     if use_lm:
@@ -100,7 +101,7 @@ def _transcribe_single_chunk(model, audio_tensor, device="cpu", use_lm=None):
         except Exception as e:
             logger.warning(f"[S2T] Failed to initialize LM scorer: {e}, proceeding without LM")
             use_lm = False
-    
+
     # Create length tensor
     x_len = torch.tensor([audio_tensor.shape[1]], device=device)
 
@@ -108,53 +109,50 @@ def _transcribe_single_chunk(model, audio_tensor, device="cpu", use_lm=None):
     with torch.no_grad():
         # Start timer
         start_time = time.time()
-        
+
         try:
             # Use LM-enhanced beam search if available and enabled
-            if use_lm and lm_scorer and hasattr(model, 'beam_search_with_lm_rescoring'):
-                logger.info(
-                    f"[S2T] Using LM-enhanced beam search "
-                    f"(lm_weight={settings.LM_WEIGHT}, beam_size={getattr(model, 'beam_size', 1)})"
-                )
-                
+            if use_lm and lm_scorer and hasattr(model, "beam_search_with_lm_rescoring"):
+                logger.info(f"[S2T] Using LM-enhanced beam search (lm_weight={settings.LM_WEIGHT}, beam_size={getattr(model, 'beam_size', 1)})")
+
                 transcription = model.beam_search_with_lm_rescoring(
                     audio_tensor.to(device),
                     x_len,
                     lm_scorer=lm_scorer,
                     lm_weight=settings.LM_WEIGHT,
                 )
-                
+
                 elapsed = time.time() - start_time
-                
+
                 # Handle result
                 if isinstance(transcription, list):
                     result = transcription[0] if transcription else ""
                 else:
                     result = transcription
-                
+
                 result = (result or "").lower().strip()
                 print(f"\033[92m[S2T] LM-enhanced beam search completed in {elapsed:.3f}s: '{result}'\033[0m")
                 return result
-                
+
             # Check if beam_search_decoding method is available
-            if not hasattr(model, 'beam_search_decoding'):
+            if not hasattr(model, "beam_search_decoding"):
                 raise AttributeError("Model does not have beam_search_decoding method")
-            
+
             # Check if ngram_path file exists if configured
-            if hasattr(model, 'ngram_path') and model.ngram_path is not None:
+            if hasattr(model, "ngram_path") and model.ngram_path is not None:
                 if not os.path.exists(model.ngram_path):
                     raise FileNotFoundError(f"N-gram model file not found: {model.ngram_path}")
-            
+
             # Log beam search start
-            beam_size = getattr(model, 'beam_size', 1)
+            beam_size = getattr(model, "beam_size", 1)
             print(f"\033[94m[S2T] Using beam search decoding (beam_size={beam_size})\033[0m")
-            
+
             # Call beam search decoding
             transcription = model.beam_search_decoding(audio_tensor.to(device), x_len)
-            
+
             # Calculate elapsed time
             elapsed = time.time() - start_time
-            
+
             # Handle case where transcription is a list (batch processing)
             if isinstance(transcription, list):
                 if not transcription:
@@ -173,43 +171,43 @@ def _transcribe_single_chunk(model, audio_tensor, device="cpu", use_lm=None):
             result = result.lower().strip()
             print(f"\033[92m[S2T] Beam search completed in {elapsed:.3f}s: '{result}'\033[0m")
             return result
-            
+
         except ImportError as e:
             # ctcdecode library not installed
             elapsed = time.time() - start_time
             print(f"\033[93m[S2T] WARNING: ctcdecode library not available ({e}), falling back to greedy decoding\033[0m")
-            
+
         except FileNotFoundError as e:
             # N-gram model file missing
             elapsed = time.time() - start_time
             print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
-            
+
         except AttributeError as e:
             # beam_search_decoding method not available
             elapsed = time.time() - start_time
             print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
-            
+
         except Exception as e:
             # Any other error during beam search
             elapsed = time.time() - start_time
             print(f"\033[91m[S2T] ERROR during beam search: {e}\033[0m")
-            print(f"\033[93m[S2T] Falling back to greedy search decoding\033[0m")
-        
+            print("\033[93m[S2T] Falling back to greedy search decoding\033[0m")
+
         # Fallback to greedy decoding
         try:
             print("\033[94m[S2T] Running greedy search decoding...\033[0m")
             start_time = time.time()
-            
+
             # Try greedy_search_decoding first (correct name)
-            if hasattr(model, 'greedy_search_decoding'):
+            if hasattr(model, "greedy_search_decoding"):
                 transcription = model.greedy_search_decoding(audio_tensor.to(device), x_len)
             # Fallback to gready_search_decoding (typo version)
-            elif hasattr(model, 'gready_search_decoding'):
+            elif hasattr(model, "gready_search_decoding"):
                 transcription = model.gready_search_decoding(audio_tensor.to(device), x_len)
             else:
                 print("\033[91m[S2T] ERROR: No greedy decoding method available\033[0m")
                 return ""
-            
+
             # Calculate elapsed time
             elapsed = time.time() - start_time
 
@@ -231,7 +229,7 @@ def _transcribe_single_chunk(model, audio_tensor, device="cpu", use_lm=None):
             result = result.lower().strip()
             print(f"\033[92m[S2T] Greedy decoding completed in {elapsed:.3f}s: '{result}'\033[0m")
             return result
-            
+
         except Exception as e:
             print(f"\033[91m[S2T] ERROR during greedy decoding: {e}\033[0m")
             return ""

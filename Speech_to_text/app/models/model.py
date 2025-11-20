@@ -1,19 +1,20 @@
+import os
+import time
+
+import jiwer
+
+# Sentencepiece
+import sentencepiece as spm
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-# Sentencepiece
-import sentencepiece as spm
+# Other
+from tqdm import tqdm
 
 # Schedulers
 from app.models.schedules import *
-
-# Other
-from tqdm import tqdm
-import jiwer
-import os
-import time
 
 
 def sample_synaptic_noise(m, distributed):
@@ -110,7 +111,7 @@ class Model(nn.Module):
         print("Model Parameters :", self.num_params())
         if show_dict:
             for key, value in self.state_dict().items():
-                print("{:<64} {:<16} mean {:<16.4f} std {:<16.4f}".format(key, str(tuple(value.size())), value.float().mean(), value.float().std()))
+                print(f"{key:<64} {str(tuple(value.size())):<16} mean {value.float().mean():<16.4f} std {value.float().std():<16.4f}")
 
     def distribute_strategy(self, rank):
         self.rank = rank
@@ -157,7 +158,7 @@ class Model(nn.Module):
 
                 # Epoch Init
                 if self.rank == 0:
-                    print("Epoch {}/{}".format(epoch + 1, epochs))
+                    print(f"Epoch {epoch + 1}/{epochs}")
                     epoch_iterator = tqdm(dataset_train, total=steps_per_epoch * accumulated_steps if steps_per_epoch else None)
                 else:
                     epoch_iterator = dataset_train
@@ -243,13 +244,13 @@ class Model(nn.Module):
 
                                 # Print wer
                                 if self.rank == 0:
-                                    print("{} wer : {:.2f}% - loss : {:.4f}".format(dataset_name, 100 * wer, val_loss))
+                                    print(f"{dataset_name} wer : {100 * wer:.2f}% - loss : {val_loss:.4f}")
 
                                 # Logs Validation
                                 if self.rank == 0 and writer is not None:
-                                    writer.add_scalar("Validation/WER/{}".format(dataset_name), 100 * wer, epoch + 1)
-                                    writer.add_scalar("Validation/MeanLoss/{}".format(dataset_name), val_loss, epoch + 1)
-                                    writer.add_text("Validation/Predictions/{}".format(dataset_name), "GroundTruth : " + truths[0] + " / Prediction : " + preds[0], epoch + 1)
+                                    writer.add_scalar(f"Validation/WER/{dataset_name}", 100 * wer, epoch + 1)
+                                    writer.add_scalar(f"Validation/MeanLoss/{dataset_name}", val_loss, epoch + 1)
+                                    writer.add_text(f"Validation/Predictions/{dataset_name}", "GroundTruth : " + truths[0] + " / Prediction : " + preds[0], epoch + 1)
 
                         else:
                             # Evaluate
@@ -257,7 +258,7 @@ class Model(nn.Module):
 
                             # Print wer
                             if self.rank == 0:
-                                print("Val wer : {:.2f}% - Val loss : {:.4f}".format(100 * wer, val_loss))
+                                print(f"Val wer : {100 * wer:.2f}% - Val loss : {val_loss:.4f}")
 
                             # Logs Validation
                             if self.rank == 0 and writer is not None:
@@ -370,9 +371,9 @@ class Model(nn.Module):
             # Step print
             if self.rank == 0:
                 if eval_loss:
-                    eval_iterator.set_description("mean batch wer {:.2f}% - batch wer: {:.2f}% - mean loss {:.4f} - batch loss: {:.4f}".format(100 * total_wer / (step + 1), 100 * batch_wer, total_loss / (step + 1), batch_loss))
+                    eval_iterator.set_description(f"mean batch wer {100 * total_wer / (step + 1):.2f}% - batch wer: {100 * batch_wer:.2f}% - mean loss {total_loss / (step + 1):.4f} - batch loss: {batch_loss:.4f}")
                 else:
-                    eval_iterator.set_description("mean batch wer {:.2f}% - batch wer: {:.2f}%".format(100 * total_wer / (step + 1), 100 * batch_wer))
+                    eval_iterator.set_description(f"mean batch wer {100 * total_wer / (step + 1):.2f}% - batch wer: {100 * batch_wer:.2f}%")
 
             # Evaluation Steps
             if eval_steps:
@@ -426,9 +427,9 @@ class Model(nn.Module):
 
         if self.rank == 0:
             if epochs_list:
-                print("Stochastic Weight Averaging on checkpoints : {}".format(epochs_list))
+                print(f"Stochastic Weight Averaging on checkpoints : {epochs_list}")
             else:
-                print("Stochastic Weight Averaging on checkpoints : {}-{}".format(start_epoch, end_epoch))
+                print(f"Stochastic Weight Averaging on checkpoints : {start_epoch}-{end_epoch}")
 
         # Update SWA Model Params
         if epochs_list:

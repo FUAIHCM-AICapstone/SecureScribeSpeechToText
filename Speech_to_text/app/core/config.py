@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Google AI Configuration
     GOOGLE_API_KEY: str = ""
-    
+
     # Language Model Configuration
     LM_TYPE: str = "gemini"  # Options: "none", "gemini"
     LM_WEIGHT: float = 0.3  # Weight for LM score in shallow fusion (0.0 to 1.0)
