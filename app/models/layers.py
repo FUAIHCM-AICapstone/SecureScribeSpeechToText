@@ -1,8 +1,8 @@
 import torch
+import torch._VF as _VF
 import torch.nn as nn
 import torch.nn.functional as F
-import torch._VF as _VF
-from torch.nn.modules.utils import _single, _pair
+from torch.nn.modules.utils import _pair
 
 # Activation Functions
 from app.models.activations import Swish

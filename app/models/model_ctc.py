@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-# Base Model
-from app.models.model import Model
+# CTC Decode Beam Search
+from pyctcdecode import build_ctcdecoder
 
 # Encoders
 from app.models.encoders import ConformerEncoder, ConformerEncoderInterCTC
@@ -10,8 +10,8 @@ from app.models.encoders import ConformerEncoder, ConformerEncoderInterCTC
 # Losses
 from app.models.losses import LossCTC, LossInterCTC
 
-# CTC Decode Beam Search
-from pyctcdecode import build_ctcdecoder
+# Base Model
+from app.models.model import Model
 
 
 class ModelCTC(Model):

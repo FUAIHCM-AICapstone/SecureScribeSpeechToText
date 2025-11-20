@@ -1,5 +1,5 @@
-import os
 import time
+
 import torch
 
 from app.models.model_ctc import ModelCTC
@@ -10,7 +10,7 @@ def create_model(config_data):
     return model
 
 
-def transcribe_audio_segment(model, audio_tensor, device="cpu", sample_rate=16000):
+def transcribe_audio_segment(model, audio_tensor, device="cpu"):
     """
     Transcribe an audio segment using the loaded model.
 

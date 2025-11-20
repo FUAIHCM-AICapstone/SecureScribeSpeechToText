@@ -1,11 +1,10 @@
-import torch
 import torch.nn as nn
-
-# Modules
-from app.models.modules import FeedForwardModule, MultiHeadSelfAttentionModule, ConvolutionModule
 
 # Layers
 from app.models.layers import Conv1d, Transpose
+
+# Modules
+from app.models.modules import ConvolutionModule, FeedForwardModule, MultiHeadSelfAttentionModule
 
 
 class ConformerBlock(nn.Module):

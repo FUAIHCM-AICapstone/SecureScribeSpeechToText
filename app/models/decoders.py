@@ -5,10 +5,10 @@ import torch.nn as nn
 from app.models.attentions import SinusoidalPositionalEncoding, StreamingMask
 
 # Blocks
-from app.models.blocks import TransformerBlock, ConformerBlock
+from app.models.blocks import ConformerBlock, TransformerBlock
 
 # Layers
-from app.models.layers import Embedding, LSTM
+from app.models.layers import LSTM, Embedding
 
 ###############################################################################
 # Decoder Models

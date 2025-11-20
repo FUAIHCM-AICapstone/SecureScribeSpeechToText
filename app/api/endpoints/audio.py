@@ -8,8 +8,8 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.jobs.tasks import transcribe_audio_task
-from app.utils.redis import create_task, get_task_status
 from app.utils.audio_converter import convert_webm_to_wav
+from app.utils.redis import create_task, get_task_status
 
 # Suppress specific deprecation warnings from pyannote.audio/torchaudio
 warnings.filterwarnings("ignore", message="torchaudio._backend.list_audio_backends has been deprecated", category=UserWarning)
@@ -78,31 +78,31 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
 
         # Handle WebM conversion
         if file_extension == ".webm":
-            print(f"\033[94m[API] WebM file detected, validating audio stream\033[0m")
-            
+            print("\033[94m[API] WebM file detected, validating audio stream\033[0m")
+
             try:
                 # Convert WebM to WAV
-                print(f"\033[94m[API] Converting WebM to WAV format\033[0m")
+                print("\033[94m[API] Converting WebM to WAV format\033[0m")
                 wav_path = f"/tmp/transcribe_{task_id}.wav"
-                
+
                 if not convert_webm_to_wav(temp_audio_path, wav_path):
-                    print(f"\033[91m[API] ERROR: Failed to convert WebM to WAV\033[0m")
+                    print("\033[91m[API] ERROR: Failed to convert WebM to WAV\033[0m")
                     # Clean up both WebM and any partial WAV files
                     if os.path.exists(temp_audio_path):
                         os.unlink(temp_audio_path)
                     if os.path.exists(wav_path):
                         os.unlink(wav_path)
                     raise HTTPException(status_code=500, detail="Failed to convert WebM to WAV")
-                
+
                 # Clean up original WebM file
                 if os.path.exists(temp_audio_path):
                     os.unlink(temp_audio_path)
-                    print(f"\033[94m[API] Cleaned up original WebM file\033[0m")
-                
+                    print("\033[94m[API] Cleaned up original WebM file\033[0m")
+
                 # Update temp_audio_path to point to converted WAV file
                 temp_audio_path = wav_path
-                print(f"\033[92m[API] WebM conversion completed successfully\033[0m")
-                
+                print("\033[92m[API] WebM conversion completed successfully\033[0m")
+
             except HTTPException:
                 # Re-raise HTTP exceptions
                 raise

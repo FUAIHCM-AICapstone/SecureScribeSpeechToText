@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 
+# Positional Encodings and Masks
+from app.models.attentions import SinusoidalPositionalEncoding, StreamingMask
+
 # Blocks
 from app.models.blocks import ConformerBlock
 
 # Modules
-from app.models.modules import AudioPreprocessing, SpecAugment, Conv1dSubsampling, Conv2dSubsampling, Conv2dPoolSubsampling, VGGSubsampling
-
-# Positional Encodings and Masks
-from app.models.attentions import SinusoidalPositionalEncoding, StreamingMask
+from app.models.modules import AudioPreprocessing, Conv1dSubsampling, Conv2dPoolSubsampling, Conv2dSubsampling, SpecAugment, VGGSubsampling
 
 ###############################################################################
 # Encoder Models

@@ -1,11 +1,10 @@
-import torch
-
-# SentencePiece
-import sentencepiece as spm
-
 # Other
 import glob
 import os
+
+# SentencePiece
+import sentencepiece as spm
+import torch
 from tqdm import tqdm
 
 
@@ -58,7 +57,7 @@ def create_tokenizer(training_params, tokenizer_params):
             print("Create Corpus File")
             text_totals = []
             for file_path in tqdm(txt_files):
-                for line in open(file_path, "r", encoding="utf8").readlines():
+                for line in open(file_path, encoding="utf8").readlines():
                     text = " ".join(line.split())
                     if len(text.split()) > 1:
                         text_totals.append(text)
