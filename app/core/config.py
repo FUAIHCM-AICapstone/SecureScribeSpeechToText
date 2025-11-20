@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     # HuggingFace Configuration
     HF_TOKEN: str = ""
 
+    # Decoding Configuration
+    DECODING_STRATEGY: str = "gemini"
+    HF_LM_MODEL_ID: str = "Qwen/Qwen3-0.6B"
+    HF_LM_ALPHA: float = 0.3
+    HF_LM_BETA: float = 0.5
+    HF_LM_BEAM_WIDTH: int = 10
+
+    # Gemini Configuration
+    GEMINI_MODEL_ID: str = "gemini-2.5-flash-preview-09-2025"
+
     # Indexing Configuration
 
     @computed_field  # type: ignore[prop-decorator]

@@ -13,6 +13,8 @@ def convert_webm_to_wav(webm_path: str, wav_path: str) -> bool:
     """
     Convert a WebM file to WAV format using FFmpeg.
 
+    This is a wrapper around convert_audio for backward compatibility.
+
     Args:
         webm_path: Path to the input WebM file
         wav_path: Path where the output WAV file should be saved
@@ -20,33 +22,52 @@ def convert_webm_to_wav(webm_path: str, wav_path: str) -> bool:
     Returns:
         True on successful conversion, False on failure
     """
-    if not os.path.exists(webm_path):
-        print(f"\033[91m[AudioConverter] ERROR: Input file not found: {webm_path}\033[0m")
+    return convert_audio(webm_path, wav_path)
+
+
+def convert_audio(input_path: str, output_path: str, sample_rate: int = 16000) -> bool:
+    """
+    Convert any audio file to WAV format with specific sample rate using FFmpeg.
+    Ensures output is mono (1 channel) and 16-bit PCM.
+
+    Args:
+        input_path: Path to the input audio file
+        output_path: Path where the output WAV file should be saved
+        sample_rate: Target sample rate in Hz (default: 16000)
+
+    Returns:
+        True on successful conversion, False on failure
+    """
+    if not os.path.exists(input_path):
+        print(f"\033[91m[AudioConverter] ERROR: Input file not found: {input_path}\033[0m")
         return False
 
     try:
-        print("\033[94m[AudioConverter] Starting WebM to WAV conversion\033[0m")
-        print(f"\033[94m[AudioConverter] Input: {webm_path}\033[0m")
-        print(f"\033[94m[AudioConverter] Output: {wav_path}\033[0m")
+        print(f"\033[94m[AudioConverter] Starting audio conversion: {input_path} -> {output_path}\033[0m")
 
-        # Use ffmpeg to convert WebM to WAV
-        # -vn: no video, -c:a pcm_s16le: PCM 16-bit audio codec, -y: overwrite output
-        command = f'ffmpeg -y -i "{webm_path}" -vn -c:a pcm_s16le "{wav_path}"'
-        result = subprocess.call(command, shell=True)
+        command = f'ffmpeg -y -i "{input_path}" -vn -ac 1 -ar {sample_rate} -c:a pcm_s16le "{output_path}"'
+
+        # Suppress output unless error
+        result = subprocess.call(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        if result != 0:
+            # Try again with stderr visible if it failed
+            print("\033[93m[AudioConverter] Conversion failed silently, retrying with output...\033[0m")
+            result = subprocess.call(command, shell=True)
 
         if result != 0:
             print(f"\033[91m[AudioConverter] ERROR: FFmpeg conversion failed with code {result}\033[0m")
             return False
 
         # Verify the output file was created
-        if not os.path.exists(wav_path):
-            print("\033[91m[AudioConverter] ERROR: WAV file was not created\033[0m")
+        if not os.path.exists(output_path):
+            print("\033[91m[AudioConverter] ERROR: Output file was not created\033[0m")
             return False
 
         # Check file size
-        file_size = os.path.getsize(wav_path)
+        file_size = os.path.getsize(output_path)
         if file_size == 0:
-            print("\033[91m[AudioConverter] ERROR: WAV file is empty\033[0m")
+            print("\033[91m[AudioConverter] ERROR: Output file is empty\033[0m")
             return False
 
         print(f"\033[92m[AudioConverter] Conversion completed successfully (output size: {file_size} bytes)\033[0m")
@@ -55,12 +76,11 @@ def convert_webm_to_wav(webm_path: str, wav_path: str) -> bool:
     except Exception as e:
         print(f"\033[91m[AudioConverter] ERROR: Conversion failed: {str(e)}\033[0m")
 
-        # Clean up partial WAV file if it exists
-        if os.path.exists(wav_path):
+        # Clean up partial file if it exists
+        if os.path.exists(output_path):
             try:
-                os.unlink(wav_path)
-                print("\033[94m[AudioConverter] Cleaned up partial WAV file\033[0m")
-            except Exception as cleanup_error:
-                print(f"\033[91m[AudioConverter] ERROR: Failed to clean up partial WAV file: {str(cleanup_error)}\033[0m")
+                os.unlink(output_path)
+            except Exception:
+                pass
 
         return False

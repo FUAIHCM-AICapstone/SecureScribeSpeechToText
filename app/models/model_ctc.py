@@ -150,6 +150,18 @@ class ModelCTC(Model):
         # Decode Sequences
         return self.tokenizer.decode(batch_pred_list)
 
+    def hf_lm_beam_search_decoding(self, x, x_len, hf_decoder):
+        logits, logits_len = self.encoder(x, x_len)[:2]
+        logits = self.fc(logits)
+        logits = logits / self.tmp
+        batch_pred_list = []
+        for b in range(logits.size(0)):
+            single_logits = logits[b, : logits_len[b], :]
+            vocab_to_hf_map = {i: i for i in range(1, self.tokenizer.vocab_size())}
+            decoded_indices = hf_decoder.decode(single_logits, vocab_to_hf_map)
+            batch_pred_list.append(decoded_indices)
+        return self.tokenizer.decode(batch_pred_list)
+
 
 class InterCTC(ModelCTC):
     def __init__(self, encoder_params, tokenizer_params, training_params, decoding_params, name):

@@ -33,9 +33,10 @@ RUN git clone https://github.com/kpu/kenlm.git /tmp/kenlm \
     && cd / \
     && rm -rf /tmp/kenlm
 
-# Install uv + deps
+# Install uv + deps (PyTorch CPU-only first, then others)
 COPY requirements.txt .
 RUN pip install --no-cache-dir uv \
+    && uv pip install torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu --system --no-cache \
     && uv pip install -r requirements.txt --system --no-cache
 # Copy application code
 COPY app/ ./app/

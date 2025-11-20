@@ -1,8 +1,22 @@
+import os
+import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
+import torchaudio
 
+from app.core.config import settings
 from app.models.model_ctc import ModelCTC
+
+PROMPT_TEMPLATE = """RESPONSE IN VIETNAMESE: Listen carefully to the following audio file. PROVIDE DETAIL TRANSCRIPT WITH SPEAKER DIARIZATION IN VIETNAMESE
+    Listen carefully, focus on speaker diarization, and provide a detailed transcript in Vietnamese.
+    reduce the line of speech, only insert new line if new speaker start speaking.
+    Focus on matching the voice to a correct speaker.
+      Format:
+      <transcript that you hear>\n\n
+      If you not hear any speak, just said there is no speaker in the audio, skip the background noise, only focus on the speaker. NO EXTRA INFORMATION NEEDED.
+    """
 
 
 def create_model(config_data):
@@ -10,20 +24,23 @@ def create_model(config_data):
     return model
 
 
-def transcribe_audio_segment(model, audio_tensor, device="cpu"):
-    """
-    Transcribe an audio segment using the loaded model.
+_hf_decoder = None
 
-    Args:
-        model: Loaded speech-to-text model
-        audio_tensor: Audio tensor (should be 1D or 2D with shape [channels, samples])
-        device: Device to run inference on
-        sample_rate: Sample rate of audio (default: 16000 Hz)
 
-    Returns:
-        Transcribed text
-    """
-    print(f"\033[94m[S2T] Starting transcription of audio segment with beam search decoding (shape: {audio_tensor.shape})\033[0m")
+def get_hf_decoder():
+    global _hf_decoder
+    if _hf_decoder is None and settings.DECODING_STRATEGY == "hf_lm":
+        from app.utils.hf_lm_decoder import HFLMBeamDecoder
+
+        print("\033[94m[S2T] Initializing HF LM decoder (one-time setup)\033[0m")
+        _hf_decoder = HFLMBeamDecoder(model_id=settings.HF_LM_MODEL_ID, alpha=settings.HF_LM_ALPHA, beta=settings.HF_LM_BETA, beam_width=settings.HF_LM_BEAM_WIDTH, device="cpu", hf_token=settings.HF_TOKEN)
+    return _hf_decoder
+
+
+def transcribe_audio_segment(model, audio_tensor, device="cpu", strategy=None):
+    if strategy is None:
+        strategy = settings.DECODING_STRATEGY
+    print(f"\033[94m[S2T] Starting transcription with {strategy} decoding (shape: {audio_tensor.shape})\033[0m")
 
     # Ensure audio is in the right format
     if audio_tensor.dim() == 1:
@@ -39,8 +56,13 @@ def transcribe_audio_segment(model, audio_tensor, device="cpu"):
     if audio_tensor.dim() == 1:
         audio_tensor = audio_tensor.unsqueeze(0)
 
+    # SKIP CHUNKING FOR GEMINI
+    if strategy == "gemini":
+        print("\033[94m[S2T] Gemini strategy selected, skipping chunking (Gemini handles long context)\033[0m")
+        return _transcribe_single_chunk(model, audio_tensor, device, strategy)
+
     # Check if audio is too long and split into chunks
-    max_samples = 956000  # Based on train_audio_max_length from config
+    max_samples = 1056000  # Based on train_audio_max_length from config
     audio_length = audio_tensor.shape[1]
 
     if audio_length > max_samples:
@@ -58,131 +80,170 @@ def transcribe_audio_segment(model, audio_tensor, device="cpu"):
 
         print(f"\033[94m[S2T] Split into {len(chunks)} chunks\033[0m")
 
-        # Transcribe each chunk
-        transcriptions = []
-        for i, chunk in enumerate(chunks):
-            print(f"\033[94m[S2T] Transcribing chunk {i + 1}/{len(chunks)} with beam search (shape: {chunk.shape})\033[0m")
-            transcription = _transcribe_single_chunk(model, chunk, device)
-            if transcription:
-                transcriptions.append(transcription)
+        # Transcribe each chunk in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(_transcribe_single_chunk, model, chunk, device, strategy): (i, chunk) for i, chunk in enumerate(chunks)}
+            transcriptions = []
+            for future in futures:
+                i, chunk = futures[future]
+                print(f"\033[94m[S2T] Transcribing chunk {i + 1}/{len(chunks)} (shape: {chunk.shape})\033[0m")
+                transcription = future.result()
+                if transcription:
+                    transcriptions.append((i, transcription))
+            transcriptions.sort(key=lambda x: x[0])
+            transcriptions = [t for _, t in transcriptions]
 
         # Combine transcriptions
         result = " ".join(transcriptions).strip()
         print(f"\033[92m[S2T] Combined transcription: '{result}'\033[0m")
         return result
     else:
-        return _transcribe_single_chunk(model, audio_tensor, device)
+        return _transcribe_single_chunk(model, audio_tensor, device, strategy)
 
 
-def _transcribe_single_chunk(model, audio_tensor, device="cpu"):
-    """
-    Transcribe a single audio chunk using beam search decoding with fallback to greedy decoding.
-    """
-    # Create length tensor
+def _transcribe_single_chunk(model, audio_tensor, device="cpu", strategy="greedy"):
     x_len = torch.tensor([audio_tensor.shape[1]], device=device)
-
-    # Run inference
     with torch.no_grad():
-        # Start timer
         start_time = time.time()
-
-        # try:
-        #     # Check if beam_search_decoding method is available
-        #     if not hasattr(model, "beam_search_decoding"):
-        #         raise AttributeError("Model does not have beam_search_decoding method")
-
-        #     # Check if ngram_path file exists if configured
-        #     if hasattr(model, "ngram_path") and model.ngram_path is not None:
-        #         if not os.path.exists(model.ngram_path):
-        #             raise FileNotFoundError(f"N-gram model file not found: {model.ngram_path}")
-
-        #     # Log beam search start
-        #     beam_size = getattr(model, "beam_size", 1)
-        #     print(f"\033[94m[S2T] Using beam search decoding (beam_size={beam_size})\033[0m")
-
-        #     # Call beam search decoding
-        #     transcription = model.beam_search_decoding(audio_tensor.to(device), x_len)
-
-        #     # Calculate elapsed time
-        #     elapsed = time.time() - start_time
-
-        #     # Handle case where transcription is a list (batch processing)
-        #     if isinstance(transcription, list):
-        #         if not transcription:
-        #             # Handle empty list case
-        #             print("\033[91m[S2T] ERROR: Beam search returned empty list\033[0m")
-        #             return ""
-        #         result = transcription[0]
-        #     else:
-        #         result = transcription
-
-        #     # Handle None result
-        #     if result is None:
-        #         print("\033[91m[S2T] ERROR: Beam search returned None\033[0m")
-        #         return ""
-
-        #     result = result.lower().strip()
-        #     print(f"\033[92m[S2T] Beam search completed in {elapsed:.3f}s: '{result}'\033[0m")
-        #     return result
-
-        # except ImportError as e:
-        #     # ctcdecode library not installed
-        #     elapsed = time.time() - start_time
-        #     print(f"\033[93m[S2T] WARNING: ctcdecode library not available ({e}), falling back to greedy decoding\033[0m")
-
-        # except FileNotFoundError as e:
-        #     # N-gram model file missing
-        #     elapsed = time.time() - start_time
-        #     print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
-
-        # except AttributeError as e:
-        #     # beam_search_decoding method not available
-        #     elapsed = time.time() - start_time
-        #     print(f"\033[93m[S2T] WARNING: {e}, falling back to greedy decoding\033[0m")
-
-        # except Exception as e:
-        #     # Any other error during beam search
-        #     elapsed = time.time() - start_time
-        #     print(f"\033[91m[S2T] ERROR during beam search: {e}\033[0m")
-        #     print(f"\033[93m[S2T] Falling back to greedy search decoding\033[0m")
-
-        # Fallback to greedy decoding
         try:
-            print("\033[94m[S2T] Running greedy search decoding...\033[0m")
-            start_time = time.time()
-
-            # Try greedy_search_decoding first (correct name)
-            if hasattr(model, "greedy_search_decoding"):
-                transcription = model.greedy_search_decoding(audio_tensor.to(device), x_len)
-            # Fallback to gready_search_decoding (typo version)
-            elif hasattr(model, "gready_search_decoding"):
-                transcription = model.gready_search_decoding(audio_tensor.to(device), x_len)
+            if strategy == "beam":
+                return _decode_beam(model, audio_tensor, x_len, device, start_time)
+            elif strategy == "hf_lm":
+                return _decode_hf_lm(model, audio_tensor, x_len, device, start_time)
+            elif strategy == "gemini":
+                return _decode_gemini(audio_tensor, start_time)
             else:
-                print("\033[91m[S2T] ERROR: No greedy decoding method available\033[0m")
-                return ""
-
-            # Calculate elapsed time
-            elapsed = time.time() - start_time
-
-            # Handle case where transcription is a list (batch processing)
-            if isinstance(transcription, list):
-                if not transcription:
-                    # Handle empty list case
-                    print("\033[91m[S2T] ERROR: Greedy decoding returned empty list\033[0m")
-                    return ""
-                result = transcription[0]
-            else:
-                result = transcription
-
-            # Handle None result from tokenizer error
-            if result is None:
-                print("\033[91m[S2T] ERROR: Greedy decoding returned None (tokenizer not available)\033[0m")
-                return ""
-
-            result = result.lower().strip()
-            print(f"\033[92m[S2T] Greedy decoding completed in {elapsed:.3f}s: '{result}'\033[0m")
-            return result
-
+                return _decode_greedy(model, audio_tensor, x_len, device, start_time)
         except Exception as e:
-            print(f"\033[91m[S2T] ERROR during greedy decoding: {e}\033[0m")
+            print(f"\033[91m[S2T] ERROR during {strategy} decoding: {e}\033[0m")
+            print("\033[93m[S2T] Falling back to greedy decoding\033[0m")
+            return _decode_greedy(model, audio_tensor, x_len, device, time.time())
+
+
+def _decode_greedy(model, audio_tensor, x_len, device, start_time):
+    print("\033[94m[S2T] Running greedy decoding\033[0m")
+    if hasattr(model, "greedy_search_decoding"):
+        transcription = model.greedy_search_decoding(audio_tensor.to(device), x_len)
+    elif hasattr(model, "gready_search_decoding"):
+        transcription = model.gready_search_decoding(audio_tensor.to(device), x_len)
+    else:
+        print("\033[91m[S2T] ERROR: No greedy method available\033[0m")
+        return ""
+    elapsed = time.time() - start_time
+    if isinstance(transcription, list):
+        result = transcription[0] if transcription else ""
+    else:
+        result = transcription
+    if result is None:
+        return ""
+    result = result.lower().strip()
+    print(f"\033[92m[S2T] Greedy completed in {elapsed:.3f}s: '{result}'\033[0m")
+    return result
+
+
+def _decode_beam(model, audio_tensor, x_len, device, start_time):
+    print("\033[94m[S2T] Running beam search decoding\033[0m")
+    transcription = model.beam_search_decoding(audio_tensor.to(device), x_len)
+    elapsed = time.time() - start_time
+    if isinstance(transcription, list):
+        result = transcription[0] if transcription else ""
+    else:
+        result = transcription
+    if result is None:
+        return ""
+    result = result.lower().strip()
+    print(f"\033[92m[S2T] Beam completed in {elapsed:.3f}s: '{result}'\033[0m")
+    return result
+
+
+def _decode_hf_lm(model, audio_tensor, x_len, device, start_time):
+    print("\033[94m[S2T] Running HF LM beam search decoding\033[0m")
+    hf_decoder = get_hf_decoder()
+    if hf_decoder is None:
+        print("\033[91m[S2T] ERROR: HF decoder not initialized\033[0m")
+        return "[HF_LM_ERROR]"
+    try:
+        transcription = model.hf_lm_beam_search_decoding(audio_tensor.to(device), x_len, hf_decoder)
+        elapsed = time.time() - start_time
+        if isinstance(transcription, list):
+            result = transcription[0] if transcription else ""
+        else:
+            result = transcription
+        if result is None:
             return ""
+        result = result.lower().strip()
+        print(f"\033[92m[S2T] HF LM completed in {elapsed:.3f}s: '{result}'\033[0m")
+        return result
+    except Exception as e:
+        print(f"\033[91m[S2T] HF_LM_ERROR: {e}\033[0m")
+        print("\033[93m[S2T] Marking with error prefix\033[0m")
+        return "[HF_LM_ERROR]"
+
+
+def _decode_gemini(audio_tensor, start_time):
+    print("\033[94m[S2T] Running Gemini audio transcription\033[0m")
+    if not settings.GOOGLE_API_KEY:
+        print("\033[91m[S2T] ERROR: GOOGLE_API_KEY not configured\033[0m")
+        return ""
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+
+        # Convert tensor to WAV file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_path = temp_file.name
+
+        # Save audio tensor as WAV
+        torchaudio.save(temp_path, audio_tensor.cpu(), 16000, format="wav")
+
+        try:
+            # Read audio file in binary mode
+            with open(temp_path, "rb") as f:
+                audio_bytes = f.read()
+
+            file_size_mb = len(audio_bytes) / (1024 * 1024)
+            print(f"\033[94m[S2T] Audio file size: {file_size_mb:.2f} MB\033[0m")
+
+            # Use File API if > 18MB (safe margin for 20MB limit)
+            if file_size_mb > 18:
+                print("\033[94m[S2T] File > 18MB, using File API upload\033[0m")
+                # Upload file
+                uploaded_file = client.files.upload(file=temp_path, config={"mime_type": "audio/wav"})
+                print(f"\033[94m[S2T] Uploaded file: {uploaded_file.name}\033[0m")
+
+                # Generate content
+                response = client.models.generate_content(model=settings.GEMINI_MODEL_ID, contents=[PROMPT_TEMPLATE, uploaded_file])
+            else:
+                # Create content part from audio bytes
+                audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
+
+                # Generate transcript
+                response = client.models.generate_content(model=settings.GEMINI_MODEL_ID, contents=[PROMPT_TEMPLATE, audio_part])
+
+            elapsed = time.time() - start_time
+            try:
+                result = response.text.strip().lower()
+                result = replace("\n", " ", result)
+            except Exception as e:
+                print(f"\033[91m[S2T] ERROR extracting text from Gemini response: {e}\033[0m")
+                return ""
+
+            # Don't flatten newlines to preserve diarization format
+            # result = re.sub("\n+", " ", result)
+            print(f"\033[92m[S2T] Gemini completed in {elapsed:.3f}s (length: {len(result)})\033[0m")
+            return result
+        except Exception as e:
+            print(f"\033[91m[S2T] GEMINI_ERROR during transcription: {e}\033[0m")
+            return ""
+
+        finally:
+            # Cleanup temp file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    except Exception as e:
+        print(f"\033[91m[S2T] GEMINI_ERROR: {e}\033[0m")
+        return ""
