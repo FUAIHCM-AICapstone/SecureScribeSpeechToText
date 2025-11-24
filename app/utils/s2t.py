@@ -10,12 +10,13 @@ from app.core.config import settings
 from app.models.model_ctc import ModelCTC
 
 PROMPT_TEMPLATE = """RESPONSE IN VIETNAMESE: Listen carefully to the following audio file. PROVIDE DETAIL TRANSCRIPT WITH SPEAKER DIARIZATION IN VIETNAMESE
-    Listen carefully, focus on speaker diarization, and provide a detailed transcript in Vietnamese.
-    reduce the line of speech, only insert new line if new speaker start speaking.
-    Focus on matching the voice to a correct speaker.
+    Listen carefully and provide a detailed transcript in Vietnamese.
+    only insert new line if new speaker start speaking.
       Format:
       <transcript that you hear>\n\n
-      If you not hear any speak, just said there is no speaker in the audio, skip the background noise, only focus on the speaker. NO EXTRA INFORMATION NEEDED.
+      If you not hear any speak, LEAVE IT BLANK DO NOT RETURN ANYTHING, SKIP the background noise, only focus on the speaker. NO EXTRA INFORMATION NEEDED.
+      do not use number and special character, use only text example 1 -> một, 11 -> mười một (verbose)
+      Do not include any additional information such as [inaudible], [laughter], or other non-speech sounds.
     """
 
 
@@ -225,8 +226,19 @@ def _decode_gemini(audio_tensor, start_time):
 
             elapsed = time.time() - start_time
             try:
-                result = response.text.strip().lower()
-                result = replace("\n", " ", result)
+                result = response.text.lower()
+                result = result.replace("\n", " ")
+                # remove (<content>) [<content>] patterns
+                import re
+                result = re.sub(r"[\(\[\{].*?[\)\]\}]", "", result)
+                # remove all special symbols and double spaces !@#$%^&*<>?,./;:'"\|`~ " '
+                result = re.sub(r"[!@#$%^&*<>?,./;:'\"\\|`~]", "", result)
+                if not result:
+                    print("\033[93m[S2T] Gemini returned empty transcript\033[0m")
+                    return ""
+                if result:
+                    result = result.strip()
+                print(f"\033[92m[S2T] Gemini raw result: '{result}'\033[0m")
             except Exception as e:
                 print(f"\033[91m[S2T] ERROR extracting text from Gemini response: {e}\033[0m")
                 return ""
