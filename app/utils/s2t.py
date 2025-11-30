@@ -1,23 +1,10 @@
-import os
-import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 import torch
-import torchaudio
 
 from app.core.config import settings
 from app.models.model_ctc import ModelCTC
-
-PROMPT_TEMPLATE = """RESPONSE IN VIETNAMESE: Listen carefully to the following audio file. PROVIDE DETAIL TRANSCRIPT WITH SPEAKER DIARIZATION IN VIETNAMESE
-    Listen carefully and provide a detailed transcript in Vietnamese.
-    only insert new line if new speaker start speaking.
-      Format:
-      <transcript that you hear>\n\n
-      If you not hear any speak, LEAVE IT BLANK DO NOT RETURN ANYTHING, SKIP the background noise, only focus on the speaker. NO EXTRA INFORMATION NEEDED.
-      do not use number and special character, use only text example 1 -> một, 11 -> mười một (verbose)
-      Do not include any additional information such as [inaudible], [laughter], or other non-speech sounds.
-    """
 
 
 def create_model(config_data):
@@ -56,11 +43,6 @@ def transcribe_audio_segment(model, audio_tensor, device="cpu", strategy=None):
     audio_tensor = audio_tensor.squeeze()
     if audio_tensor.dim() == 1:
         audio_tensor = audio_tensor.unsqueeze(0)
-
-    # SKIP CHUNKING FOR GEMINI
-    if strategy == "gemini":
-        print("\033[94m[S2T] Gemini strategy selected, skipping chunking (Gemini handles long context)\033[0m")
-        return _transcribe_single_chunk(model, audio_tensor, device, strategy)
 
     # Check if audio is too long and split into chunks
     max_samples = 1056000  # Based on train_audio_max_length from config
@@ -111,8 +93,6 @@ def _transcribe_single_chunk(model, audio_tensor, device="cpu", strategy="greedy
                 return _decode_beam(model, audio_tensor, x_len, device, start_time)
             elif strategy == "hf_lm":
                 return _decode_hf_lm(model, audio_tensor, x_len, device, start_time)
-            elif strategy == "gemini":
-                return _decode_gemini(audio_tensor, start_time)
             else:
                 return _decode_greedy(model, audio_tensor, x_len, device, start_time)
         except Exception as e:
@@ -179,83 +159,3 @@ def _decode_hf_lm(model, audio_tensor, x_len, device, start_time):
         print(f"\033[91m[S2T] HF_LM_ERROR: {e}\033[0m")
         print("\033[93m[S2T] Marking with error prefix\033[0m")
         return "[HF_LM_ERROR]"
-
-
-def _decode_gemini(audio_tensor, start_time):
-    print("\033[94m[S2T] Running Gemini audio transcription\033[0m")
-    if not settings.GOOGLE_API_KEY:
-        print("\033[91m[S2T] ERROR: GOOGLE_API_KEY not configured\033[0m")
-        return ""
-
-    try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=settings.GOOGLE_API_KEY)
-
-        # Convert tensor to WAV file
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-            temp_path = temp_file.name
-
-        # Save audio tensor as WAV
-        torchaudio.save(temp_path, audio_tensor.cpu(), 16000, format="wav")
-
-        try:
-            # Read audio file in binary mode
-            with open(temp_path, "rb") as f:
-                audio_bytes = f.read()
-
-            file_size_mb = len(audio_bytes) / (1024 * 1024)
-            print(f"\033[94m[S2T] Audio file size: {file_size_mb:.2f} MB\033[0m")
-
-            # Use File API if > 18MB (safe margin for 20MB limit)
-            if file_size_mb > 18:
-                print("\033[94m[S2T] File > 18MB, using File API upload\033[0m")
-                # Upload file
-                uploaded_file = client.files.upload(file=temp_path, config={"mime_type": "audio/wav"})
-                print(f"\033[94m[S2T] Uploaded file: {uploaded_file.name}\033[0m")
-
-                # Generate content
-                response = client.models.generate_content(model=settings.GEMINI_MODEL_ID, contents=[PROMPT_TEMPLATE, uploaded_file])
-            else:
-                # Create content part from audio bytes
-                audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
-
-                # Generate transcript
-                response = client.models.generate_content(model=settings.GEMINI_MODEL_ID, contents=[PROMPT_TEMPLATE, audio_part])
-
-            elapsed = time.time() - start_time
-            try:
-                result = response.text.lower()
-                result = result.replace("\n", " ")
-                # remove (<content>) [<content>] patterns
-                import re
-                result = re.sub(r"[\(\[\{].*?[\)\]\}]", "", result)
-                # remove all special symbols and double spaces !@#$%^&*<>?,./;:'"\|`~ " '
-                result = re.sub(r"[!@#$%^&*<>?,./;:'\"\\|`~]", "", result)
-                if not result:
-                    print("\033[93m[S2T] Gemini returned empty transcript\033[0m")
-                    return ""
-                if result:
-                    result = result.strip()
-                print(f"\033[92m[S2T] Gemini raw result: '{result}'\033[0m")
-            except Exception as e:
-                print(f"\033[91m[S2T] ERROR extracting text from Gemini response: {e}\033[0m")
-                return ""
-
-            # Don't flatten newlines to preserve diarization format
-            # result = re.sub("\n+", " ", result)
-            print(f"\033[92m[S2T] Gemini completed in {elapsed:.3f}s (length: {len(result)})\033[0m")
-            return result
-        except Exception as e:
-            print(f"\033[91m[S2T] GEMINI_ERROR during transcription: {e}\033[0m")
-            return ""
-
-        finally:
-            # Cleanup temp file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-
-    except Exception as e:
-        print(f"\033[91m[S2T] GEMINI_ERROR: {e}\033[0m")
-        return ""
