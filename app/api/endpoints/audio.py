@@ -32,6 +32,29 @@ router = APIRouter(prefix=settings.API_V1_STR, tags=["Audio"])
 CONFIG_PATH = "app/core/configs/EfficientConformerCTCSmall.json"
 CHECKPOINT_PATH = "checkpoints_56_90h.ckpt"
 
+# Convert to absolute paths for Docker compatibility
+def _get_absolute_path(relative_path):
+    """Convert relative path to absolute path, trying multiple locations."""
+    if os.path.isabs(relative_path):
+        return relative_path
+    
+    possible_paths = [
+        relative_path,  # Current working directory
+        os.path.join("/app", relative_path),  # Docker app root
+        os.path.join(os.getcwd(), relative_path),  # Absolute from cwd
+    ]
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            return p
+    
+    # Return the first one as default (will be validated later during execution)
+    return possible_paths[0]
+
+# Set absolute paths at module load time
+CONFIG_PATH = _get_absolute_path(CONFIG_PATH)
+CHECKPOINT_PATH = _get_absolute_path(CHECKPOINT_PATH)
+
 
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...), callback_url: str = Form(None)):

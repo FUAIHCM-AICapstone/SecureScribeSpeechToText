@@ -292,7 +292,12 @@ class Model(nn.Module):
 
     def load(self, path):
         # Load Model Checkpoint
-        checkpoint = torch.load(path, map_location=next(self.parameters()).device, weights_only=False)
+        try:
+            checkpoint = torch.load(path, map_location=next(self.parameters()).device, weights_only=False)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load checkpoint from '{path}': {type(e).__name__}: {str(e)}. "
+                             f"File may be corrupted, incomplete, or in wrong format. "
+                             f"Expected a PyTorch checkpoint (.ckpt or .pt file).") from e
 
         # Model State Dict
         if checkpoint["is_distributed"] and not self.is_distributed:
