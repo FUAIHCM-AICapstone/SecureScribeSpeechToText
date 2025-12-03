@@ -179,7 +179,7 @@ def diarize_and_transcribe_audio(audio_path, config_path, checkpoint_path, hf_to
     # Load checkpoint if provided
     if checkpoint_path:
         print(f"\033[94m[PIPELINE] Checking checkpoint path: {checkpoint_path}\033[0m")
-        
+
         # Resolve absolute path if relative path is given
         if not os.path.isabs(checkpoint_path):
             # Try multiple possible locations
@@ -188,42 +188,42 @@ def diarize_and_transcribe_audio(audio_path, config_path, checkpoint_path, hf_to
                 os.path.join("/app", checkpoint_path),  # Docker app root
                 os.path.join(os.getcwd(), checkpoint_path),  # Absolute from cwd
             ]
-            
+
             resolved_path = None
             for p in possible_paths:
                 if os.path.exists(p):
                     resolved_path = p
                     print(f"\033[92m[PIPELINE] Found checkpoint at: {resolved_path}\033[0m")
                     break
-            
+
             if not resolved_path:
                 print(f"\033[93m[PIPELINE] WARNING: Checkpoint not found at any of the expected locations: {possible_paths}\033[0m")
-                print(f"\033[93m[PIPELINE] Proceeding without checkpoint (model will use random weights)\033[0m")
+                print("\033[93m[PIPELINE] Proceeding without checkpoint (model will use random weights)\033[0m")
             else:
                 checkpoint_path = resolved_path
         elif not os.path.exists(checkpoint_path):
             print(f"\033[93m[PIPELINE] WARNING: Checkpoint file does not exist: {checkpoint_path}\033[0m")
-            print(f"\033[93m[PIPELINE] Proceeding without checkpoint (model will use random weights)\033[0m")
+            print("\033[93m[PIPELINE] Proceeding without checkpoint (model will use random weights)\033[0m")
             checkpoint_path = None
-        
+
         if checkpoint_path:
             try:
                 print("\033[94m[PIPELINE] Loading checkpoint using model.load()...\033[0m")
                 # Validate checkpoint file format
                 file_size = os.path.getsize(checkpoint_path)
-                print(f"\033[94m[PIPELINE] Checkpoint file size: {file_size / (1024*1024):.2f}MB\033[0m")
-                
+                print(f"\033[94m[PIPELINE] Checkpoint file size: {file_size / (1024 * 1024):.2f}MB\033[0m")
+
                 if file_size == 0:
-                    print(f"\033[91m[PIPELINE] ERROR: Checkpoint file is empty\033[0m")
+                    print("\033[91m[PIPELINE] ERROR: Checkpoint file is empty\033[0m")
                 elif file_size < 1000000:  # Less than 1MB is suspicious for a model checkpoint
                     print(f"\033[93m[PIPELINE] WARNING: Checkpoint file is unusually small ({file_size} bytes)\033[0m")
-                
+
                 model.load(checkpoint_path)
                 print("\033[92m[PIPELINE] Checkpoint loaded successfully\033[0m")
             except Exception as e:
-                print(f"\033[91m[PIPELINE] ERROR: Failed to load checkpoint: {type(e).__name__}: {str(e)}\033[0m")
-                print(f"\033[93m[PIPELINE] Proceeding without checkpoint (model will use random weights)\033[0m")
-
+                # print(f"\033[91m[PIPELINE] ERROR: Failed to load checkpoint: {type(e).__name__}: {str(e)}\033[0m")
+                # print("\033[93m[PIPELINE] Proceeding without checkpoint (model will use random weights)\033[0m")
+                pass
     # Perform diarization
     segments = perform_speaker_diarization(audio_path, hf_token, merge_gap_threshold)
 

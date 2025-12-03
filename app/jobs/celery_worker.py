@@ -11,8 +11,8 @@ celery_app = Celery(
 
 # Configure Celery settings for better timeout handling
 celery_app.conf.update(
-    task_soft_time_limit=300,
-    task_time_limit=600,
+    task_soft_time_limit=300000,
+    task_time_limit=600000,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     worker_max_tasks_per_child=50,
