@@ -1,6 +1,14 @@
+import logging
+
 from celery import Celery
 
 from app.core.config import settings
+
+# Suppress HTTP request logging from httpx and related libraries
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
 
 celery_app = Celery(
     "worker",
