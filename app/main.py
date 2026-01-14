@@ -1,5 +1,4 @@
 import os
-import warnings
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
@@ -10,16 +9,6 @@ from fastapi.routing import APIRoute
 
 from app.api import api_router
 from app.core.config import settings
-
-warnings.filterwarnings("ignore", message="torchaudio._backend.list_audio_backends has been deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*list_audio_backends.*deprecated.*", category=UserWarning)
-warnings.filterwarnings("ignore", message="torchaudio._backend.utils.info has been deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message="torchaudio._backend.common.AudioMetaData has been deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message="In 2.9, this function's implementation will be changed", category=UserWarning)
-warnings.filterwarnings("ignore", message="std\\(\\)\\: degrees of freedom is <= 0", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*torchaudio\\.info.*deprecated.*", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*AudioMetaData.*deprecated.*", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*torchcodec.*", category=UserWarning)
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

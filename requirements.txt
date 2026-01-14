@@ -11,18 +11,5 @@ redis==6.4.0
 aioredis==2.0.1
 tenacity==9.1.2
 celery==5.5.3
-huggingface-hub==0.35.3
-torch-audiomentations==0.12.0
-torch_pitch_shift==1.2.5
-torchmetrics==1.8.2
-jiwer==4.0.0
-tensorboard==2.16.2
-sentencepiece>=0.2.0
-tqdm==4.66.2
-numpy==1.26.4
 python-multipart==0.0.19
-pyannote.audio==3.3.2
-pyctcdecode
-transformers>=4.40.0
 google-genai>=0.8.0
-# kenlm==0.3.0

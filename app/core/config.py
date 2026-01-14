@@ -41,20 +41,8 @@ class Settings(BaseSettings):
     # Google AI Configuration
     GOOGLE_API_KEY: str = ""
 
-    # HuggingFace Configuration
-    HF_TOKEN: str = ""
-
-    # Decoding Configuration
-    DECODING_STRATEGY: str = "beam"
-    HF_LM_MODEL_ID: str = "Qwen/Qwen3-0.6B"
-    HF_LM_ALPHA: float = 0.3
-    HF_LM_BETA: float = 0.5
-    HF_LM_BEAM_WIDTH: int = 10
-
     # External Model Configuration
     EXT_MODEL_ID: str = "gemini-2.5-flash-preview-09-2025"
-
-    # Indexing Configuration
 
     @computed_field  # type: ignore[prop-decorator]
     @property

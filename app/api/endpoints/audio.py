@@ -1,6 +1,5 @@
 import os
 import shutil
-import warnings
 from typing import Set
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -11,57 +10,13 @@ from app.jobs.tasks import transcribe_audio_task
 from app.utils.audio_converter import convert_webm_to_wav
 from app.utils.redis import create_task, get_task_status
 
-# Suppress specific deprecation warnings from pyannote.audio/torchaudio
-warnings.filterwarnings("ignore", message="torchaudio._backend.list_audio_backends has been deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*list_audio_backends.*deprecated.*", category=UserWarning)
-warnings.filterwarnings("ignore", message="torchaudio._backend.utils.info has been deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message="torchaudio._backend.common.AudioMetaData has been deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message="In 2.9, this function's implementation will be changed", category=UserWarning)
-warnings.filterwarnings("ignore", message="std\\(\\)\\: degrees of freedom is <= 0", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*torchaudio\\.info.*deprecated.*", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*AudioMetaData.*deprecated.*", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*torchcodec.*", category=UserWarning)
-
-# Alternative approach using environment variable (uncomment if needed)
-# import os
-# os.environ['TORCHAUDIO_SHOW_DEPRECATED_WARNING'] = '0'
-
 router = APIRouter(prefix=settings.API_V1_STR, tags=["Audio"])
-
-# Configuration paths
-CONFIG_PATH = "app/core/configs/EfficientConformerCTCSmall.json"
-CHECKPOINT_PATH = "checkpoints_56_90h.ckpt"
-
-
-# Convert to absolute paths for Docker compatibility
-def _get_absolute_path(relative_path):
-    """Convert relative path to absolute path, trying multiple locations."""
-    if os.path.isabs(relative_path):
-        return relative_path
-
-    possible_paths = [
-        relative_path,  # Current working directory
-        os.path.join("/app", relative_path),  # Docker app root
-        os.path.join(os.getcwd(), relative_path),  # Absolute from cwd
-    ]
-
-    for p in possible_paths:
-        if os.path.exists(p):
-            return p
-
-    # Return the first one as default (will be validated later during execution)
-    return possible_paths[0]
-
-
-# Set absolute paths at module load time
-CONFIG_PATH = _get_absolute_path(CONFIG_PATH)
-CHECKPOINT_PATH = _get_absolute_path(CHECKPOINT_PATH)
 
 
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...), callback_url: str = Form(None)):
     """
-    Upload an audio file and get transcription with speaker diarization.
+    Upload an audio file and get transcription using Google Gemini API.
 
     Args:
         file: Audio file to transcribe (supports WAV, MP3, M4A, FLAC, etc.)
@@ -152,7 +107,7 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
 
         # Enqueue background task
         print(f"\033[94m[API] Enqueuing background task for task_id={task_id}\033[0m")
-        transcribe_audio_task.delay(task_id=task_id, audio_path=temp_audio_path, config_path=CONFIG_PATH, checkpoint_path=CHECKPOINT_PATH, hf_token=settings.HF_TOKEN, callback_url=callback_url)
+        transcribe_audio_task.delay(task_id=task_id, audio_path=temp_audio_path, callback_url=callback_url)
 
         print(f"\033[92m[API] Background task enqueued successfully for task_id={task_id}\033[0m")
 
@@ -204,4 +159,4 @@ async def get_transcription_status():
     Returns:
         JSON response with service status and configuration
     """
-    return {"success": True, "message": "Transcription service is available", "data": {"supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"], "model_config": CONFIG_PATH, "checkpoint": CHECKPOINT_PATH, "device": "cpu", "diarization_model": "pyannote/speaker-diarization-3.1"}}
+    return {"success": True, "message": "Transcription service is available", "data": {"supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"], "transcription_engine": "Google Gemini API", "model": settings.EXT_MODEL_ID}}
