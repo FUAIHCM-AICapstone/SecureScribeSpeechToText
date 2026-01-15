@@ -6,7 +6,7 @@ services:
     build: .
     image: luongnguyenminhan/securescribe:s2t
     ports:
-      - "9999:9998"
+      - "9998:9998"
     env_file:
       - .env
     restart: unless-stopped

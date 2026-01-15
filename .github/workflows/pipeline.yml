@@ -182,7 +182,7 @@ jobs:
             -e VAULT_ADDR="${{ secrets.VAULT_ADDR }}" \
             -e VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}" \
             -e PYTHON_ENVIRONMENT="${{ secrets.PYTHON_ENVIRONMENT }}" \
-            -p 9999:8000 \
+            -p 9998:9998 \
             ${{ needs.build-s2t.outputs.s2t-image }}
 
       - name: ✅ Verify deployment

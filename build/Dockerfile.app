@@ -20,10 +20,4 @@ RUN dos2unix start.sh || sed -i 's/\r$//' start.sh && \
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 9998
-
-# Set entrypoint
-CMD ["/bin/bash", "start.sh"]
-
 CMD ["/bin/bash", "-c", "exec ./start.sh"]
