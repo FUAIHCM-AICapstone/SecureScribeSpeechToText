@@ -23,5 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# Ensure appuser owns the application directory before switching users
+RUN chown -R appuser:appuser /app
 # Switch to non-root user
 USER appuser

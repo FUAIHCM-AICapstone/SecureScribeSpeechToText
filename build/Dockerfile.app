@@ -9,12 +9,13 @@ WORKDIR /app
 COPY app/ ./app/
 COPY start.sh ./start.sh
 
+RUN chmod +x start.sh && sed -i 's/\r$//' start.sh && chown -R appuser:appuser /app
 RUN chmod +x start.sh && sed -i 's/\r$//' start.sh && chown appuser:appuser start.sh
 
 # Switch to non-root user (inherited from runtime)
 USER appuser
 
 # Expose port
-EXPOSE 8000
+EXPOSE 9998
 
 CMD ["/bin/bash", "-c", "exec ./start.sh"]
