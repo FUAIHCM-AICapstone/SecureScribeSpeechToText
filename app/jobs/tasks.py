@@ -38,31 +38,31 @@ def transcribe_audio_task(task_id: str, audio_path: str, callback_url: str = Non
 
         # Run transcription (auto-splits if > 10 min)
         logger.info(f"Running transcription for task_id={task_id}")
-        transcript, token_usage = transcribe_audio_with_splitting(audio_path)
+        speakers, token_usage = transcribe_audio_with_splitting(audio_path)
 
-        # Always include token usage in results, even if transcript is empty
+        # Speakers are already parsed from Gemini response
+        # Combine all speaker transcriptions into a single transcript string
+        transcript = ""
+        if speakers:
+            transcript_parts = [speaker["transcription"] for speaker in speakers]
+            transcript = " ".join(transcript_parts)
+
+        # Always include token usage in results, even if speakers is empty
         results = {
-            "transcript": transcript or "",
+            "transcript": transcript,
+            "speakers": speakers or [],
+            "speaker_lines": len(speakers) if speakers else 0,
             "token_usage": token_usage.to_dict(),
         }
 
-        # Check if transcript is empty
-        if not transcript:
-            error_msg = "Empty transcription received"
-            logger.warning(f"Task {task_id}: {error_msg}, but token usage tracked: {token_usage.to_dict()}")
-            # Still store the results with token tracking even on empty transcript
-            update_task_status(task_id, "completed", progress=100, results=results)
-            if callback_url:
-                send_callback(task_id, callback_url, "completed", results=results)
-        else:
-            # Update task status to completed with token usage
-            update_task_status(task_id, "completed", progress=100, results=results)
+        # Update task status to completed with token usage
+        update_task_status(task_id, "completed", progress=100, results=results)
 
-            # Send callback if URL provided
-            if callback_url:
-                send_callback(task_id, callback_url, "completed", results=results)
+        # Send callback if URL provided
+        if callback_url:
+            send_callback(task_id, callback_url, "completed", results=results)
 
-            logger.info(f"Background transcription completed for task_id={task_id}, Total tokens - Input: {token_usage.input_tokens}, Output: {token_usage.output_tokens}")
+        logger.info(f"Background transcription completed for task_id={task_id}, Total tokens - Input: {token_usage.input_tokens}, Output: {token_usage.output_tokens}")
 
         # Clean up temp file
         try:

@@ -24,6 +24,24 @@ class TokenUsageSchema(BaseModel):
     total_tokens: int = 0
 
 
+class SpeakerSegmentSchema(BaseModel):
+    """Speaker segment from diarization"""
+
+    speaker: str
+    start_time: float
+    end_time: float
+    transcription: str
+
+
+class TranscriptionResultSchema(BaseModel):
+    """Transcription results with speakers and token usage"""
+
+    transcript: str
+    speakers: List[SpeakerSegmentSchema] = []
+    speaker_lines: int = 0
+    token_usage: TokenUsageSchema
+
+
 class ApiResponse(BaseModel, Generic[T]):
     """Generic API response wrapper"""
 

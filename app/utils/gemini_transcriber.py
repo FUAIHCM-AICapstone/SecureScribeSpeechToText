@@ -7,6 +7,7 @@ from google.genai import Client, types
 from app.core.config import settings
 from app.utils.logging import logger
 from app.utils.models import FILE_SIZE_THRESHOLD_MB, MODEL_ID, PROMPT_TEMPLATE, TokenUsage, extract_token_usage
+from app.utils.transcription_parser import parse_speaker_diarization
 
 SEGMENT_DURATION_SEC = 600  # 10 minutes
 MAX_SEGMENT_SIZE_MB = 20
@@ -71,16 +72,16 @@ def split_audio_to_segments(audio_path: str, temp_dir: str = "/tmp") -> list[str
         return []
 
 
-def transcribe_audio_with_gemini(audio_path: str) -> tuple[str | None, TokenUsage]:
+def transcribe_audio_with_gemini(audio_path: str) -> tuple[list[dict] | None, TokenUsage]:
     """
-    Transcribe audio file using Google Gemini API.
+    Transcribe audio file using Google Gemini API and parse speaker diarization.
 
     Args:
         audio_path: Path to audio file
 
     Returns:
-        Tuple of (transcribed_text, token_usage)
-        - transcribed_text: Transcribed text in Vietnamese, or None if empty
+        Tuple of (speakers_list, token_usage)
+        - speakers_list: List of speaker segments with speaker, start_time, end_time, transcription, or None if empty
         - token_usage: TokenUsage object with input/output token counts
     """
     try:
@@ -136,38 +137,36 @@ def transcribe_audio_with_gemini(audio_path: str) -> tuple[str | None, TokenUsag
         token_usage = extract_token_usage(response)
         logger.info(f"[GEMINI] Token usage extracted: {token_usage.to_dict()}")
 
-        # Extract and clean response text
-        transcript_text = response.text.lower().replace("\n", " ").strip()
-        logger.debug(f"[GEMINI] Raw response text: {transcript_text[:200]}...")
+        # Get raw response text (keep original format for parsing)
+        raw_response = response.text.strip()
+        logger.debug(f"[GEMINI] Raw response text: {raw_response[:200]}...")
 
-        # Remove bracketed text (e.g., [inaudible], [laughter])
-        transcript_text = re.sub(r"[\(\[\{].*?[\)\]\}]", "", transcript_text)
-
-        # Remove special characters
-        transcript_text = re.sub(r"[!@#$%^&*<>?,./;:'\"\\|`~]", "", transcript_text)
-
-        # Final cleanup
-        transcript_text = transcript_text.strip()
-
-        if not transcript_text:
-            logger.warning("[GEMINI] WARNING: Empty transcription received")
+        if not raw_response:
+            logger.warning("[GEMINI] WARNING: Empty response from Gemini")
             return None, token_usage
 
-        logger.success(f"[GEMINI] Transcription completed: {transcript_text[:100]}...")
-        return transcript_text, token_usage
+        # Parse speaker diarization directly from raw response
+        speakers = parse_speaker_diarization(raw_response)
+
+        if not speakers:
+            logger.warning("[GEMINI] WARNING: No speakers parsed from response")
+            return None, token_usage
+
+        logger.success(f"[GEMINI] Transcription completed: {len(speakers)} speakers parsed")
+        return speakers, token_usage
 
     except Exception as e:
         logger.exception(f"[GEMINI] ERROR during transcription: {str(e)}")
         raise RuntimeError(f"Failed to transcribe audio with Gemini: {str(e)}")
 
 
-def transcribe_audio_with_splitting(audio_path: str) -> tuple[str | None, TokenUsage]:
+def transcribe_audio_with_splitting(audio_path: str) -> tuple[list[dict] | None, TokenUsage]:
     """
     Transcribe long audio by splitting into 10-min segments.
     Each segment is transcribed sequentially, results are combined.
 
     Returns:
-        Tuple of (combined_transcript, total_token_usage)
+        Tuple of (combined_speakers, total_token_usage)
     """
     try:
         duration = get_audio_duration(audio_path)
@@ -186,24 +185,33 @@ def transcribe_audio_with_splitting(audio_path: str) -> tuple[str | None, TokenU
         logger.info(f"[PIPELINE] Processing {len(segments)} segments sequentially")
 
         # Process segments sequentially (avoid Celery deadlock)
-        transcripts = []
+        all_speakers = []
         total_token_usage = TokenUsage()
+        segment_offset = 0.0
 
         for idx, seg_path in enumerate(segments):
             try:
                 logger.info(f"[PIPELINE] Transcribing segment {idx + 1}/{len(segments)}")
-                transcript, token_usage = transcribe_audio_with_gemini(seg_path)
+                speakers, token_usage = transcribe_audio_with_gemini(seg_path)
 
-                if transcript:
-                    transcripts.append(transcript)
+                if speakers:
+                    # Adjust timing for segments after the first
+                    if idx > 0:
+                        for speaker in speakers:
+                            speaker["start_time"] += segment_offset
+                            speaker["end_time"] += segment_offset
+
+                    all_speakers.extend(speakers)
 
                 total_token_usage.input_tokens += token_usage.input_tokens
                 total_token_usage.output_tokens += token_usage.output_tokens
 
-                logger.success(f"[PIPELINE] Segment {idx + 1} completed - Tokens: Input={token_usage.input_tokens}, Output={token_usage.output_tokens}")
+                logger.success(f"[PIPELINE] Segment {idx + 1} completed - {len(speakers) if speakers else 0} speakers, Tokens: Input={token_usage.input_tokens}, Output={token_usage.output_tokens}")
             except Exception as seg_error:
                 logger.warning(f"[PIPELINE] WARNING: Segment {idx + 1} failed: {str(seg_error)}, continuing...")
                 continue
+
+            segment_offset += SEGMENT_DURATION_SEC
 
         # Cleanup all segment files
         for seg_path in segments:
@@ -213,10 +221,10 @@ def transcribe_audio_with_splitting(audio_path: str) -> tuple[str | None, TokenU
             except:
                 pass
 
-        combined = " ".join(transcripts) if transcripts else None
-        logger.success(f"[PIPELINE] All segments done: {len(combined) if combined else 0} chars total, Total tokens - Input: {total_token_usage.input_tokens}, Output: {total_token_usage.output_tokens}")
+        combined_speakers = all_speakers if all_speakers else None
+        logger.success(f"[PIPELINE] All segments done: {len(combined_speakers) if combined_speakers else 0} speakers total, Total tokens - Input: {total_token_usage.input_tokens}, Output: {total_token_usage.output_tokens}")
 
-        return combined, total_token_usage
+        return combined_speakers, total_token_usage
 
     except Exception as e:
         logger.exception(f"[PIPELINE] ERROR: {str(e)}")
