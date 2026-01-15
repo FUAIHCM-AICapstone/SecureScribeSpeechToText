@@ -95,7 +95,7 @@ def parse_speaker_diarization(transcript: str) -> List[Dict[str, Any]]:
             if speaker_text and speaker_num != "0":  # Skip "No speech" indicator
                 # Estimate duration based on character count
                 char_count = len(speaker_text)
-                estimated_duration = max(0.5, char_count / 150.0)  # Min 0.5 seconds
+                estimated_duration = max(0.3, char_count / 150.0)  # Min 0.3 seconds
 
                 speaker_data = {
                     "speaker": f"SPEAKER_{speaker_num}",
@@ -115,12 +115,12 @@ def parse_speaker_diarization(transcript: str) -> List[Dict[str, Any]]:
         logger.warning("[PARSER] No speakers found with pattern matching, trying fallback")
         # Fallback: treat entire transcript as single speaker
         char_count = len(transcript)
-        estimated_duration = max(1.0, char_count / 150.0)
+        estimated_duration = max(0.3, char_count / 150.0)
         results = [
             {
                 "speaker": "SPEAKER_1",
                 "start_time": 0.0,
-                "end_time": round(estimated_duration, 2),
+                "end_time": round(estimated_duration, 5),
                 "transcription": transcript,
             }
         ]
