@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.jobs.tasks import transcribe_audio_task
 from app.utils.audio_converter import convert_webm_to_wav
+from app.utils.logging import logger
+from app.utils.models import MODEL_ID
 from app.utils.redis import create_task, get_task_status
 
 router = APIRouter(prefix=settings.API_V1_STR, tags=["Audio"])
@@ -159,4 +161,4 @@ async def get_transcription_status():
     Returns:
         JSON response with service status and configuration
     """
-    return {"success": True, "message": "Transcription service is available", "data": {"supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"], "transcription_engine": "Google Gemini API", "model": settings.EXT_MODEL_ID}}
+    return {"success": True, "message": "Transcription service is available", "data": {"supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"], "transcription_engine": "Google Gemini API", "model": MODEL_ID}}

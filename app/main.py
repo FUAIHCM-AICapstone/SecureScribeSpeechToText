@@ -9,6 +9,9 @@ from fastapi.routing import APIRoute
 
 from app.api import api_router
 from app.core.config import settings
+from app.core.vault_loader import load_config_from_api_v2
+
+load_config_from_api_v2()
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

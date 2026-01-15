@@ -3,17 +3,21 @@ import logging
 from celery import Celery
 
 from app.core.config import settings
+from app.core.vault_loader import load_config_from_api_v2
 
 # Suppress HTTP request logging from httpx and related libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("requests").setLevel(logging.WARNING)
+load_config_from_api_v2()
+
+local_url = "redis://redis:6379/0"
 
 celery_app = Celery(
     "worker",
-    broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND,
+    broker=local_url,
+    backend=local_url,
     include=["app.jobs.tasks"],  # Explicitly include tasks module
 )
 

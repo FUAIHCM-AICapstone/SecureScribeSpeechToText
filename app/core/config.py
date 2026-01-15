@@ -7,6 +7,10 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.vault_loader import load_config_from_api_v2
+
+load_config_from_api_v2()
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -28,9 +32,6 @@ class Settings(BaseSettings):
         BeforeValidator(lambda x: x.split(",") if isinstance(x, str) else x),
     ] = []
 
-    # Project Configuration
-    PROJECT_NAME: str = "SecureScribeBE"
-
     # Redis Configuration
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
@@ -42,7 +43,6 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
 
     # External Model Configuration
-    EXT_MODEL_ID: str = "gemini-2.5-flash-preview-09-2025"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

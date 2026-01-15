@@ -16,6 +16,14 @@ class PaginationMeta(BaseModel):
     has_prev: bool
 
 
+class TokenUsageSchema(BaseModel):
+    """Token usage information from Gemini API"""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+
 class ApiResponse(BaseModel, Generic[T]):
     """Generic API response wrapper"""
 
