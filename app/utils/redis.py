@@ -7,6 +7,7 @@ from redis import ConnectionPool
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
+from app.utils.logging import logger
 
 
 def _get_redis_auth_kwargs():
@@ -112,7 +113,7 @@ def create_task(task_id: str, filename: str, callback_url: str = None) -> bool:
         redis_client.expire(f"task:{task_id}", 3600)  # Expire after 1 hour
         return True
     except Exception as e:
-        print(f"[REDIS] Error creating task {task_id}: {e}")
+        logger.error(f"[REDIS] Error creating task {task_id}: {e}")
         return False
 
 
@@ -131,7 +132,7 @@ def update_task_status(task_id: str, status: str, progress: int = None, results:
         redis_client.hset(f"task:{task_id}", mapping=update_data)
         return True
     except Exception as e:
-        print(f"[REDIS] Error updating task {task_id}: {e}")
+        logger.error(f"[REDIS] Error updating task {task_id}: {e}")
         return False
 
 
@@ -151,7 +152,7 @@ def get_task_status(task_id: str) -> dict:
 
         return task_data
     except Exception as e:
-        print(f"[REDIS] Error getting task {task_id}: {e}")
+        logger.error(f"[REDIS] Error getting task {task_id}: {e}")
         return None
 
 
@@ -168,14 +169,14 @@ def send_callback(task_id: str, callback_url: str, status: str, results: dict = 
         response = requests.post(callback_url, json=callback_data, timeout=10, headers={"Content-Type": "application/json"})
 
         if response.status_code == 200:
-            print(f"[CALLBACK] Successfully sent callback for task {task_id}")
+            logger.success(f"[CALLBACK] Successfully sent callback for task {task_id}")
             return True
         else:
-            print(f"[CALLBACK] Callback failed for task {task_id}: HTTP {response.status_code}")
+            logger.error(f"[CALLBACK] Callback failed for task {task_id}: HTTP {response.status_code}")
             return False
 
     except Exception as e:
-        print(f"[CALLBACK] Error sending callback for task {task_id}: {e}")
+        logger.error(f"[CALLBACK] Error sending callback for task {task_id}: {e}")
         return False
 
 
@@ -185,5 +186,5 @@ def cleanup_task_data(task_id: str) -> bool:
         redis_client.delete(f"task:{task_id}")
         return True
     except Exception as e:
-        print(f"[REDIS] Error cleaning up task {task_id}: {e}")
+        logger.error(f"[REDIS] Error cleaning up task {task_id}: {e}")
         return False

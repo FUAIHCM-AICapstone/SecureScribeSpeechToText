@@ -8,6 +8,8 @@ using FFmpeg directly, with proper error handling and validation.
 import os
 import subprocess
 
+from app.utils.logging import logger
+
 
 def convert_webm_to_wav(webm_path: str, wav_path: str) -> bool:
     """
@@ -39,11 +41,11 @@ def convert_audio(input_path: str, output_path: str, sample_rate: int = 16000) -
         True on successful conversion, False on failure
     """
     if not os.path.exists(input_path):
-        print(f"\033[91m[AudioConverter] ERROR: Input file not found: {input_path}\033[0m")
+        logger.error(f"[AudioConverter] Input file not found: {input_path}")
         return False
 
     try:
-        print(f"\033[94m[AudioConverter] Starting audio conversion: {input_path} -> {output_path}\033[0m")
+        logger.info(f"[AudioConverter] Starting audio conversion: {input_path} -> {output_path}")
 
         command = f'ffmpeg -y -i "{input_path}" -vn -ac 1 -ar {sample_rate} -c:a pcm_s16le "{output_path}"'
 
@@ -52,29 +54,29 @@ def convert_audio(input_path: str, output_path: str, sample_rate: int = 16000) -
 
         if result != 0:
             # Try again with stderr visible if it failed
-            print("\033[93m[AudioConverter] Conversion failed silently, retrying with output...\033[0m")
+            logger.warning("[AudioConverter] Conversion failed silently, retrying with output...")
             result = subprocess.call(command, shell=True)
 
         if result != 0:
-            print(f"\033[91m[AudioConverter] ERROR: FFmpeg conversion failed with code {result}\033[0m")
+            logger.error(f"[AudioConverter] FFmpeg conversion failed with code {result}")
             return False
 
         # Verify the output file was created
         if not os.path.exists(output_path):
-            print("\033[91m[AudioConverter] ERROR: Output file was not created\033[0m")
+            logger.error("[AudioConverter] Output file was not created")
             return False
 
         # Check file size
         file_size = os.path.getsize(output_path)
         if file_size == 0:
-            print("\033[91m[AudioConverter] ERROR: Output file is empty\033[0m")
+            logger.error("[AudioConverter] Output file is empty")
             return False
 
-        print(f"\033[92m[AudioConverter] Conversion completed successfully (output size: {file_size} bytes)\033[0m")
+        logger.success(f"[AudioConverter] Conversion completed successfully (output size: {file_size} bytes)")
         return True
 
     except Exception as e:
-        print(f"\033[91m[AudioConverter] ERROR: Conversion failed: {str(e)}\033[0m")
+        logger.error(f"[AudioConverter] Conversion failed: {str(e)}")
 
         # Clean up partial file if it exists
         if os.path.exists(output_path):

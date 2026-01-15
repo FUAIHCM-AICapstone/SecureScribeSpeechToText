@@ -10,6 +10,7 @@ from fastapi.routing import APIRoute
 from app.api import api_router
 from app.core.config import settings
 from app.core.vault_loader import load_config_from_api_v2
+from app.utils.logging import logger
 
 load_config_from_api_v2()
 
@@ -79,9 +80,9 @@ app = FastAPI(
 
 @app.middleware("http")
 async def log_requests(request, call_next):
-    print(f"[REQUEST] {request.method} {request.url}")
+    logger.info(f"[REQUEST] {request.method} {request.url}")
     response = await call_next(request)
-    print(f"[RESPONSE] {response}")
+    logger.info(f"[RESPONSE] {response}")
     return response
 
 

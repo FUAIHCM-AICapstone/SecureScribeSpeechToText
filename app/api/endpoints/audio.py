@@ -27,17 +27,17 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
     Returns:
         JSON response with task ID and status information
     """
-    print(f"\033[94m[API] Starting background transcription for file: {file.filename}\033[0m")
+    logger.info(f"[API] Starting background transcription for file: {file.filename}")
 
     # Validate file type
     allowed_extensions: Set[str] = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"}
     file_extension = os.path.splitext(file.filename or "")[1].lower()
 
     if file_extension not in allowed_extensions:
-        print(f"\033[91m[API] ERROR: Unsupported file format: {file_extension}\033[0m")
+        logger.error(f"[API] Unsupported file format: {file_extension}")
         raise HTTPException(status_code=400, detail=f"Unsupported file format. Allowed formats: {', '.join(allowed_extensions)}")
 
-    print(f"\033[92m[API] File format validated: {file_extension}\033[0m")
+    logger.success(f"[API] File format validated: {file_extension}")
 
     # Generate unique task ID
     import uuid
@@ -45,30 +45,30 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
     task_id = str(uuid.uuid4())
 
     try:
-        print(f"\033[94m[API] Creating temporary file for task_id={task_id}\033[0m")
+        logger.info(f"[API] Creating temporary file for task_id={task_id}")
 
         # Create temporary file that will persist until task completes
         # File will be accessible by both API and Celery worker containers via shared volume
         temp_audio_path = f"/tmp/transcribe_{task_id}{file_extension}"
 
         # Save uploaded file to temp location
-        print(f"\033[94m[API] Saving file to: {temp_audio_path}\033[0m")
+        logger.info(f"[API] Saving file to: {temp_audio_path}")
         with open(temp_audio_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        print("\033[92m[API] File saved successfully\033[0m")
+        logger.success("[API] File saved successfully")
 
         # Handle WebM conversion
         if file_extension == ".webm":
-            print("\033[94m[API] WebM file detected, validating audio stream\033[0m")
+            logger.info("[API] WebM file detected, validating audio stream")
 
             try:
                 # Convert WebM to WAV
-                print("\033[94m[API] Converting WebM to WAV format\033[0m")
+                logger.info("[API] Converting WebM to WAV format")
                 wav_path = f"/tmp/transcribe_{task_id}.wav"
 
                 if not convert_webm_to_wav(temp_audio_path, wav_path):
-                    print("\033[91m[API] ERROR: Failed to convert WebM to WAV\033[0m")
+                    logger.error("[API] Failed to convert WebM to WAV")
                     # Clean up both WebM and any partial WAV files
                     if os.path.exists(temp_audio_path):
                         os.unlink(temp_audio_path)
@@ -79,17 +79,17 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
                 # Clean up original WebM file
                 if os.path.exists(temp_audio_path):
                     os.unlink(temp_audio_path)
-                    print("\033[94m[API] Cleaned up original WebM file\033[0m")
+                    logger.info("[API] Cleaned up original WebM file")
 
                 # Update temp_audio_path to point to converted WAV file
                 temp_audio_path = wav_path
-                print("\033[92m[API] WebM conversion completed successfully\033[0m")
+                logger.success("[API] WebM conversion completed successfully")
 
             except HTTPException:
                 # Re-raise HTTP exceptions
                 raise
             except Exception as e:
-                print(f"\033[91m[API] ERROR: WebM processing failed: {str(e)}\033[0m")
+                logger.error(f"[API] WebM processing failed: {str(e)}")
                 # Clean up files on error
                 if os.path.exists(temp_audio_path):
                     os.unlink(temp_audio_path)
@@ -99,28 +99,28 @@ async def transcribe_audio(file: UploadFile = File(...), callback_url: str = For
                 raise HTTPException(status_code=500, detail=f"Failed to process WebM file: {str(e)}")
 
         # Create task metadata in Redis
-        print(f"\033[94m[API] Creating task metadata for task_id={task_id}\033[0m")
+        logger.info(f"[API] Creating task metadata for task_id={task_id}")
         if not create_task(task_id, file.filename, callback_url):
-            print(f"\033[91m[API] ERROR: Failed to create task metadata for task_id={task_id}\033[0m")
+            logger.error(f"[API] Failed to create task metadata for task_id={task_id}")
             # Clean up temp file on error
             if os.path.exists(temp_audio_path):
                 os.unlink(temp_audio_path)
             raise HTTPException(status_code=500, detail="Failed to create task")
 
         # Enqueue background task
-        print(f"\033[94m[API] Enqueuing background task for task_id={task_id}\033[0m")
+        logger.info(f"[API] Enqueuing background task for task_id={task_id}")
         transcribe_audio_task.delay(task_id=task_id, audio_path=temp_audio_path, callback_url=callback_url)
 
-        print(f"\033[92m[API] Background task enqueued successfully for task_id={task_id}\033[0m")
+        logger.success(f"[API] Background task enqueued successfully for task_id={task_id}")
 
         # Prepare response
         response_data = {"success": True, "message": "Audio transcription task enqueued successfully", "data": {"task_id": task_id, "filename": file.filename, "status": "pending", "progress": 0, "callback_url": callback_url, "polling_url": f"/api/v1/transcribe/task/{task_id}"}}
 
-        print(f"\033[92m[API] Returning task information for task_id={task_id}\033[0m")
+        logger.success(f"[API] Returning task information for task_id={task_id}")
         return JSONResponse(content=response_data)
 
     except Exception as e:
-        print(f"\033[91m[API] ERROR: {str(e)}\033[0m")
+        logger.error(f"[API] Error enqueuing transcription task: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error enqueuing transcription task: {str(e)}")
 
 
@@ -135,21 +135,21 @@ async def get_task_status_endpoint(task_id: str):
     Returns:
         JSON response with task status, progress, and results if completed
     """
-    print(f"\033[94m[API] Checking task status for task_id={task_id}\033[0m")
+    logger.info(f"[API] Checking task status for task_id={task_id}")
 
     # Get task status from Redis
     task_data = get_task_status(task_id)
 
     if not task_data:
-        print(f"\033[91m[API] ERROR: Task not found: {task_id}\033[0m")
+        logger.error(f"[API] Task not found: {task_id}")
         raise HTTPException(status_code=404, detail="Task not found")
 
-    print(f"\033[92m[API] Task status retrieved: {task_data.get('status', 'unknown')}\033[0m")
+    logger.success(f"[API] Task status retrieved: {task_data.get('status', 'unknown')}")
 
     # Prepare response
     response_data = {"success": True, "message": "Task status retrieved successfully", "data": {"task_id": task_data.get("task_id"), "status": task_data.get("status"), "progress": task_data.get("progress", 0), "filename": task_data.get("filename"), "created_at": task_data.get("created_at"), "completed_at": task_data.get("completed_at"), "error": task_data.get("error") if task_data.get("error") else None, "results": task_data.get("results")}}
 
-    print(f"\033[92m[API] Returning task status for task_id={task_id}\033[0m")
+    logger.success(f"[API] Returning task status for task_id={task_id}")
     return JSONResponse(content=response_data)
 
 
