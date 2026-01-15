@@ -11,24 +11,6 @@ from app.utils.logging import logger
 
 
 def parse_speaker_diarization(transcript: str) -> List[Dict[str, Any]]:
-    """
-    Parse speaker diarization from transcription response.
-
-    Expected format from Gemini (flexible to handle variations):
-    SPEAKER_1: <text>
-    SPEAKER_2: <text>
-
-    Also handles:
-    - speaker_1: <text> (lowercase)
-    - speaker 1: <text> (space instead of underscore)
-    - speaker_1 <text> (without colon)
-
-    Args:
-        transcript: Raw transcription text from Gemini API
-
-    Returns:
-        List of dictionaries with speaker, start_time, end_time, transcription
-    """
     if not transcript:
         logger.warning("[PARSER] Empty transcript provided")
         return []
