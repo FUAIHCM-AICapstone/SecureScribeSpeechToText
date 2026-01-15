@@ -12,12 +12,11 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("requests").setLevel(logging.WARNING)
 load_config_from_api_v2()
 
-local_url = "redis://redis:6379/0"
 
 celery_app = Celery(
     "worker",
-    broker=local_url,
-    backend=local_url,
+    broker=settings.CELERY_BROKER_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
     include=["app.jobs.tasks"],  # Explicitly include tasks module
 )
 
