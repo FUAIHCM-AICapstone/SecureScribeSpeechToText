@@ -1,6 +1,9 @@
 # Application Dockerfile - Uses runtime image and adds app code
-ARG RUNTIME_IMAGE
+ARG RUNTIME_IMAGE=python:3.11-slim-bullseye
 FROM ${RUNTIME_IMAGE}
+
+# Switch to root to copy files and set permissions
+USER root
 
 # Set working directory
 WORKDIR /app
@@ -9,13 +12,18 @@ WORKDIR /app
 COPY app/ ./app/
 COPY start.sh ./start.sh
 
-RUN chmod +x start.sh && sed -i 's/\r$//' start.sh && chown -R appuser:appuser /app
-RUN chmod +x start.sh && sed -i 's/\r$//' start.sh && chown appuser:appuser start.sh
+# Fix line endings and set permissions
+RUN dos2unix start.sh || sed -i 's/\r$//' start.sh && \
+    chmod +x start.sh && \
+    chown -R appuser:appuser /app
 
-# Switch to non-root user (inherited from runtime)
+# Switch to non-root user
 USER appuser
 
 # Expose port
 EXPOSE 9998
+
+# Set entrypoint
+CMD ["/bin/bash", "start.sh"]
 
 CMD ["/bin/bash", "-c", "exec ./start.sh"]
